@@ -1,0 +1,179 @@
+{
+  "house": {
+    "name": "Whittaker House",
+    "theme": "Abandoned Victorian horror house with dark, claustrophobic rooms and unsettling details.",
+    "floors": [
+      {
+        "name": "Top Floor",
+        "level": 3,
+        "description": "A narrow, attic-like floor with low ceilings, long shadows, and a sense of things watching from above.",
+        "rooms": [
+          {
+            "id": "attic",
+            "name": "Attic Loft",
+            "type": "storage",
+            "description": "A cramped room filled with dusty trunks, broken dolls, and warped portraits. Pale moonlight spills through a single cracked window.",
+            "features": ["dusty furniture", "torn wallpaper", "cobwebs"],
+            "connections": ["landing_top", "storage_closet"]
+          },
+          {
+            "id": "storage_closet",
+            "name": "Storage Closet",
+            "type": "small_room",
+            "description": "A tiny closet lined with brittle boxes and forgotten household items. Each step kicks up a cloud of powdery dust.",
+            "features": ["cardboard boxes", "rusted lock", "shattered mirror"],
+            "connections": ["attic", "guest_bedroom"]
+          },
+          {
+            "id": "guest_bedroom",
+            "name": "Guest Bedroom",
+            "type": "bedroom",
+            "description": "A cold bedroom with a single bed and an old wardrobe. The sheets move as though something beneath them breathes.",
+            "features": ["single bed", "wardrobe", "faded photographs"],
+            "connections": ["storage_closet", "landing_top"]
+          },
+          {
+            "id": "bathroom_top",
+            "name": "Top Bathroom",
+            "type": "bathroom",
+            "description": "A small bathroom where the mirror is cracked and the faucet drips in a slow, irregular rhythm.",
+            "features": ["cracked mirror", "broken faucet", "moldy tiles"],
+            "connections": ["landing_top"]
+          },
+          {
+            "id": "landing_top",
+            "name": "Top Floor Landing",
+            "type": "hallway",
+            "description": "A narrow landing with peeling wallpaper, leading to every room on the top floor.",
+            "features": ["peeling wallpaper", "faint scratching sound", "wall sconces"],
+            "connections": ["attic", "guest_bedroom", "bathroom_top", "stairs_down"]
+          }
+        ]
+      },
+      {
+        "name": "Ground Floor",
+        "level": 2,
+        "description": "The main living level is large and cold, with a foyer that feels like the center of a nightmare.",
+        "rooms": [
+          {
+            "id": "foyer",
+            "name": "Foyer",
+            "type": "entrance",
+            "description": "A wide foyer with a chandelier hanging at an angle and a grand staircase leading both upstairs and down.",
+            "features": ["cracked chandelier", "worn rug", "grand staircase"],
+            "connections": ["living_room", "dining_room", "stairs_up", "stairs_down"]
+          },
+          {
+            "id": "living_room",
+            "name": "Living Room",
+            "type": "lounge",
+            "description": "A dim room with sagging furniture, a cold fireplace, and the smell of incense lingering in the air.",
+            "features": ["broken sofa", "dark fireplace", "old piano"],
+            "connections": ["foyer", "study"]
+          },
+          {
+            "id": "dining_room",
+            "name": "Dining Room",
+            "type": "dining",
+            "description": "A long table set for a meal that never happened. Plates are dusty and chairs are pulled out as if guests have just left.",
+            "features": ["dusty table", "candles", "silverware"],
+            "connections": ["foyer", "kitchen"]
+          },
+          {
+            "id": "kitchen",
+            "name": "Kitchen",
+            "type": "kitchen",
+            "description": "A decrepit kitchen with rusty appliances and a refrigerator that hums despite being unplugged.",
+            "features": ["rusty stove", "open refrigerator", "damp floor"],
+            "connections": ["dining_room", "pantry"]
+          },
+          {
+            "id": "study",
+            "name": "Study",
+            "type": "office",
+            "description": "A dark study filled with bookshelves, a heavy desk, and a half-burned candle that still flickers.",
+            "features": ["bookshelves", "desk", "typewriter"],
+            "connections": ["living_room"]
+          },
+          {
+            "id": "pantry",
+            "name": "Pantry",
+            "type": "storage",
+            "description": "A cramped pantry stocked with rotting jars and the faint smell of ammonia.",
+            "features": ["rotting jars", "shelves", "broken door"],
+            "connections": ["kitchen"]
+          },
+          {
+            "id": "stairs_up",
+            "name": "Stairs to Top Floor",
+            "type": "stairwell",
+            "description": "A creaking staircase wrapped in shadows, leading up to the top floor.",
+            "features": ["worn steps", "dust trail", "handrail"],
+            "connections": ["landing_top", "foyer"]
+          },
+          {
+            "id": "stairs_down",
+            "name": "Stairs to Basement",
+            "type": "stairwell",
+            "description": "A narrow, steep stairwell descending into the basement, where the air grows colder with each step.",
+            "features": ["narrow steps", "cold air", "damp stone"],
+            "connections": ["basement_landing", "foyer"]
+          }
+        ]
+      },
+      {
+        "name": "Basement",
+        "level": 1,
+        "description": "A dark, damp basement full of old machinery, hidden spaces, and the feeling that something lives beneath the floor.",
+        "rooms": [
+          {
+            "id": "basement_landing",
+            "name": "Basement Landing",
+            "type": "hallway",
+            "description": "A low, damp landing at the bottom of the stairs with pipes running along the ceiling.",
+            "features": ["moldy walls", "exposed pipes", "sudden drafts"],
+            "connections": ["boiler_room", "cellar", "laundry_room", "hidden_room", "stairs_down"]
+          },
+          {
+            "id": "boiler_room",
+            "name": "Boiler Room",
+            "type": "utility",
+            "description": "A room dominated by a large boiler that emits a low thrum and occasional bursts of steam.",
+            "features": ["old boiler", "puddles", "metal grating"],
+            "connections": ["basement_landing"]
+          },
+          {
+            "id": "cellar",
+            "name": "Cellar",
+            "type": "storage",
+            "description": "A cold cellar lined with shelves of dusty jars and a wooden crate tucked in the corner.",
+            "features": ["jarred food", "stone walls", "creaking floorboard"],
+            "connections": ["basement_landing"]
+          },
+          {
+            "id": "laundry_room",
+            "name": "Laundry Room",
+            "type": "utility",
+            "description": "A damp laundry room with a broken washing machine and the smell of bleach mixed with damp fabric.",
+            "features": ["washing machine", "clothesline", "stained sink"],
+            "connections": ["basement_landing"]
+          },
+          {
+            "id": "hidden_room",
+            "name": "Hidden Room",
+            "type": "secret",
+            "description": "A concealed room behind a false wall, still furnished as if someone left in a hurry.",
+            "features": ["false wall", "dried flowers", "scratched messages"],
+            "connections": ["basement_landing"]
+          }
+        ]
+      }
+    ],
+    "notes": [
+      "Use the top floor for tense exploration and hidden secrets.",
+      "Make the ground floor feel like the main atmospheric hub with multiple branching paths.",
+      "The basement should be the darkest, most oppressive area with the strongest horror beats.",
+      "Scatter clues and interactive objects across floors to encourage exploration."
+    ]
+  }
+}
