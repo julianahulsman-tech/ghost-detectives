@@ -1,0 +1,22 @@
+{
+  "name": "ghost-detectives",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"nodemon --experimental-vm-modules server/index.js\" \"vite --port 5173\"",
+    "build": "vite build",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5",
+    "three": "^0.165.0",
+    "howler": "^2.2.4"
+  },
+  "devDependencies": {
+    "vite": "^5.3.0",
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.1.0"
+  }
+}
