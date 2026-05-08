@@ -1,0 +1,6 @@
+[build]
+builder = "nixpacks"
+buildCommand = "cd ghost-detectives && npm ci && npm run build"
+
+[deploy]
+startCommand = "cd ghost-detectives && node server/index.js"
