@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($nodePaths = @\\(\"C:\\\\Program Files\\\\nodejs\", \"C:\\\\Program Files \\(x86\\)\\\\nodejs\", \"$env:LOCALAPPDATA\\\\Programs\\\\nodejs\"\\); foreach \\($p in $nodePaths\\) { if \\(Test-Path \"$p\\\\node.exe\"\\) { Write-Host \"Found: $p\" } })"
+    ]
+  }
+}

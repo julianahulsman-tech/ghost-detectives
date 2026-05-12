@@ -1,0 +1,1912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ghost Detectives</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #ccc; }
+canvas { display: block; width: 100vw; height: 100vh; }
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; display: none; }
+#crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); color: rgba(255,255,255,0.7); font-size: 22px; line-height: 1; text-shadow: 0 0 4px #000; }
+#hud-topleft { position: absolute; top: 14px; left: 14px; font-size: 13px; max-width: 340px; }
+#spirit-response { background: rgba(0,0,0,0.6); border-left: 2px solid #aaa; padding: 6px 10px; margin-bottom: 6px; display: none; }
+#evidence-popup { background: rgba(0,0,0,0.6); border-left: 2px solid #6cf; padding: 6px 10px; display: none; }
+#hud-topcenter { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); text-align: center; }
+#hunt-warning { color: #f44; font-size: 16px; font-weight: bold; text-shadow: 0 0 8px #f00; display: none; animation: pulse 1s infinite; }
+#hud-topright { position: absolute; top: 14px; right: 14px; text-align: right; font-size: 12px; color: #999; }
+#hud-bottom { position: absolute; bottom: 14px; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 14px; }
+#sanity-block { font-size: 13px; }
+#sanity-label { color: #aaa; margin-bottom: 3px; }
+#sanity-bar-wrap { width: 140px; height: 8px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); }
+#sanity-bar { height: 100%; background: #7f7; transition: width 1s, background 1s; }
+#sanity-pct { font-size: 12px; color: #7f7; margin-top: 2px; }
+#tool-bar { display: flex; gap: 6px; }
+.tool-slot { width: 64px; height: 56px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.tool-slot.active { border-color: #fff; background: rgba(255,255,255,0.08); }
+.tool-slot.filled { border-color: #6cf; }
+.tool-slot.active.filled { border-color: #fff; }
+.tool-slot .slot-key { font-size: 9px; color: #555; }
+.tool-slot .slot-name { font-size: 10px; color: #bbb; text-align: center; }
+.tool-slot.active .slot-name { color: #fff; }
+.tool-slot .slot-empty { font-size: 9px; color: #444; }
+#tool-readout { font-size: 12px; color: #6cf; margin-bottom: 4px; text-align: center; }
+#hud-bottomright { text-align: right; font-size: 12px; color: #999; }
+#room-name { color: #bbb; }
+#temp-display { color: #6cf; margin-top: 2px; }
+#interact-prompt { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); font-size: 13px; color: #fff; background: rgba(0,0,0,0.5); padding: 4px 10px; display: none; }
+#lobby { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; z-index: 100; }
+#lobby h1 { font-size: 36px; color: #c33; letter-spacing: 4px; }
+#lobby h2 { font-size: 14px; color: #777; letter-spacing: 2px; }
+#lobby input { background: rgba(255,255,255,0.1); border: 1px solid #555; color: #eee; padding: 8px 14px; font-size: 15px; font-family: 'Courier New', monospace; text-align: center; width: 220px; }
+#lobby input:focus { outline: none; border-color: #c33; }
+.lobby-btn { background: #c33; color: #fff; border: none; padding: 10px 28px; font-size: 15px; cursor: pointer; font-family: 'Courier New', monospace; letter-spacing: 1px; }
+.lobby-btn:hover { background: #e44; }
+.lobby-btn:disabled { background: #555; cursor: default; }
+#journal { position: fixed; inset: 0; background: rgba(0,0,0,0.88); display: none; z-index: 50; padding: 40px; overflow-y: auto; pointer-events: all; }
+#journal h2 { color: #c33; margin-bottom: 20px; letter-spacing: 2px; font-size: 20px; }
+#journal-inner { display: flex; gap: 40px; }
+#evidence-list, #ghost-list { flex: 1; }
+#journal h3 { color: #888; font-size: 13px; margin-bottom: 12px; letter-spacing: 1px; }
+.evidence-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; cursor: pointer; padding: 4px; }
+.evidence-row:hover { background: rgba(255,255,255,0.05); }
+.ev-state { width: 22px; height: 22px; border: 1px solid #555; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.ev-state.confirmed { border-color: #4f4; color: #4f4; }
+.ev-state.ruledout { border-color: #f44; color: #f44; }
+.evidence-row.ruledout .ev-label { text-decoration: line-through; color: #555; }
+.ghost-entry { padding: 5px 8px; margin-bottom: 4px; font-size: 13px; color: #aaa; cursor: pointer; }
+.ghost-entry.eliminated { text-decoration: line-through; color: #444; }
+.ghost-entry.candidate { color: #fff; border-left: 2px solid #c33; }
+.ghost-entry.sole-candidate { color: #f88; animation: pulse 1.5s infinite; }
+#journal-submit { margin-top: 20px; background: #c33; color: #fff; border: none; padding: 10px 24px; font-size: 14px; cursor: pointer; font-family: 'Courier New', monospace; }
+#journal-submit:disabled { background: #444; cursor: default; }
+#journal-close { position: absolute; top: 20px; right: 30px; background: none; border: none; color: #888; font-size: 22px; cursor: pointer; }
+#map-tablet { position: fixed; inset: 0; background: rgba(0,0,0,0.88); display: none; z-index: 50; align-items: center; justify-content: center; pointer-events: all; }
+#map-canvas { border: 1px solid #333; }
+#map-close { position: absolute; top: 20px; right: 30px; background: none; border: none; color: #888; font-size: 22px; cursor: pointer; }
+#death-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 20px; z-index: 80; }
+#death-screen h1 { color: #c33; font-size: 48px; letter-spacing: 6px; }
+#death-screen p { color: #888; font-size: 14px; }
+#end-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.92); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 90; text-align: center; }
+#end-screen h1 { font-size: 36px; }
+#end-screen h1.win { color: #4f4; }
+#end-screen h1.lose { color: #c33; }
+#end-screen p { color: #888; font-size: 14px; }
+#end-screen .reveal { color: #ccc; font-size: 15px; }
+#frost-vignette { position: fixed; inset: 0; background: radial-gradient(ellipse at center, transparent 50%, rgba(120,180,255,0.18) 100%); pointer-events: none; z-index: 5; opacity: 0; transition: opacity 1.5s; }
+#nv-overlay { position: fixed; inset: 0; background: rgba(0,30,0,0.25); mix-blend-mode: multiply; pointer-events: none; z-index: 6; opacity: 0; transition: opacity 0.3s; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>GHOST DETECTIVES</h1>
+  <h2>WHITTAKER HOUSE — PARANORMAL INVESTIGATION UNIT</h2>
+  <input id="name-input" maxlength="16" placeholder="Enter your name..." />
+  <button class="lobby-btn" id="start-btn">ENTER THE HOUSE</button>
+  <div style="color:#555;font-size:11px;text-align:center;max-width:300px">Single player — identify the ghost before your sanity is lost</div>
+</div>
+
+<div id="hud">
+  <div id="crosshair">+</div>
+  <div id="hud-topleft">
+    <div id="spirit-response"></div>
+    <div id="evidence-popup"></div>
+  </div>
+  <div id="hud-topcenter"><div id="hunt-warning"></div></div>
+  <div id="hud-topright"><div id="session-id"></div></div>
+  <div id="hud-bottom">
+    <div id="sanity-block">
+      <div id="sanity-label">SANITY</div>
+      <div id="sanity-bar-wrap"><div id="sanity-bar"></div></div>
+      <div id="sanity-pct">100%</div>
+    </div>
+    <div><div id="tool-readout"></div><div id="tool-bar"></div></div>
+    <div id="hud-bottomright"><div id="room-name"></div><div id="temp-display"></div></div>
+  </div>
+  <div id="interact-prompt"></div>
+</div>
+
+<div id="frost-vignette"></div>
+<div id="nv-overlay"></div>
+
+<div id="journal">
+  <button id="journal-close">✕</button>
+  <h2>EVIDENCE JOURNAL</h2>
+  <div id="journal-inner">
+    <div id="evidence-list"><h3>EVIDENCE</h3></div>
+    <div id="ghost-list"><h3>GHOST TYPE</h3></div>
+  </div>
+  <button id="journal-submit" disabled>SUBMIT IDENTIFICATION</button>
+</div>
+
+<div id="map-tablet" style="display:none">
+  <button id="map-close">✕</button>
+  <canvas id="map-canvas" width="600" height="500"></canvas>
+</div>
+
+<div id="click-start" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:70;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer;">
+  <div style="color:#c33;font-size:26px;letter-spacing:4px;font-family:'Courier New',monospace;">INVESTIGATION BEGINS</div>
+  <div style="color:#888;font-size:14px;font-family:'Courier New',monospace;">Click anywhere to enter the house</div>
+</div>
+
+<div id="death-screen">
+  <h1>YOU DIED</h1>
+  <p>The ghost has claimed your soul.</p>
+  <button class="lobby-btn" id="spectate-btn">Continue as Spectator</button>
+</div>
+
+<div id="end-screen">
+  <h1 id="end-title"></h1>
+  <div class="reveal" id="end-ghost"></div>
+  <div class="reveal" id="end-room"></div>
+  <p id="end-detail"></p>
+</div>
+
+
+<script type="module">
+import * as THREE from 'three';
+import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+
+// ── Constants ────────────────────────────────────────────────────────────────
+const EVIDENCE = { EMF5:'emf5', FREEZING_TEMPS:'freezingTemps', FINGERPRINTS:'fingerprints', GHOST_ORBS:'ghostOrbs', SPIRIT_BOX:'spiritBox', WRITING:'writing' };
+const PHASE = { LOBBY:'lobby', INVESTIGATION:'investigation', HUNT:'hunt', ENDED:'ended' };
+const PLAYER_HEIGHT = 1.7, PLAYER_RADIUS = 0.4, DOOR_WIDTH = 1.8, DOOR_HEIGHT = 2.2;
+
+// ── Ghost data ───────────────────────────────────────────────────────────────
+const GHOST_TYPES = [
+  { id:'banshee',     name:'Banshee',     evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.FINGERPRINTS], specialAbility:null, huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'A wailing spirit that heralds death.' },
+  { id:'demon',       name:'Demon',       evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'One of the most vicious entities.' },
+  { id:'mare',        name:'Mare',        evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS, EVIDENCE.SPIRIT_BOX], specialAbility:null, huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'The source of all nightmares.' },
+  { id:'spirit',      name:'Spirit',      evidence:[EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING, EVIDENCE.FINGERPRINTS], specialAbility:null, huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'The most common ghost encountered.' },
+  { id:'poltergeist', name:'Poltergeist', evidence:[EVIDENCE.SPIRIT_BOX, EVIDENCE.FINGERPRINTS, EVIDENCE.GHOST_ORBS], specialAbility:null, huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'A noisy ghost capable of moving objects.' },
+  { id:'jinn',        name:'Jinn',        evidence:[EVIDENCE.EMF5, EVIDENCE.GHOST_ORBS, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterWithoutPower', huntBehavior:{baseSpeed:1.7,speedModifier:2.5,modifierCondition:'powerOff'}, flavourText:'A territorial ghost that exploits the environment.' },
+  { id:'shade',       name:'Shade',       evidence:[EVIDENCE.EMF5, EVIDENCE.WRITING, EVIDENCE.GHOST_ORBS], specialAbility:'withholdEvidenceInGroup', huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'A shy ghost — investigate alone.' },
+  { id:'yurei',       name:'Yurei',       evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'A ghost that has returned to the physical world.' },
+  { id:'oni',         name:'Oni',         evidence:[EVIDENCE.EMF5, EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'A rare and aggressive variant of the Demon.' },
+  { id:'revenant',    name:'Revenant',    evidence:[EVIDENCE.EMF5, EVIDENCE.WRITING, EVIDENCE.FINGERPRINTS], specialAbility:'proximitySpeed', huntBehavior:{baseSpeed:1.0,speedModifier:3.0,modifierCondition:'farFromPlayer',proximityThreshold:5}, flavourText:'Very fast from afar, slow up close.' },
+  { id:'phantom',     name:'Phantom',     evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS], specialAbility:'sanityDrainOnLook', huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'Sanity drains while looking at it during a hunt.' },
+  { id:'wendigo',     name:'Wendigo',     evidence:[EVIDENCE.FINGERPRINTS, EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterAtLowSanity', huntBehavior:{baseSpeed:1.7,speedModifier:2.5,modifierCondition:'playerSanityBelow30'}, flavourText:'Feeds on fear — grows faster at low sanity.' },
+  { id:'upyr',        name:'Upyr',        evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX], specialAbility:'permanentSpeedOnDeath', huntBehavior:{baseSpeed:1.7,speedModifier:0.8,modifierCondition:'playerDied'}, flavourText:'Grows permanently faster each time a player dies.' },
+  { id:'egui',        name:'Egui',        evidence:[EVIDENCE.GHOST_ORBS, EVIDENCE.WRITING, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterIfPlayerHoldsItem', huntBehavior:{baseSpeed:1.7,speedModifier:2.5,modifierCondition:'playerHoldingTriggerItem'}, flavourText:'Fixated on a specific possession.' },
+];
+
+// ── House data ───────────────────────────────────────────────────────────────
+const ROOMS = [
+  { id:'van',             name:'Investigation Van',  type:'vehicle',  floor:'ground',   bounds:{min:{x:-5,y:0,z:4},     max:{x:5,y:3,z:14}},     closetPos:{x:4.3,y:1.7,z:13.3},     connections:['foyer'], isGhostEligible:false, isSafeZone:true },
+  { id:'foyer',           name:'Foyer',             type:'entrance', floor:'ground',   bounds:{min:{x:-4,y:0,z:-4},    max:{x:4,y:3,z:4}},      closetPos:{x:3.3,y:1.7,z:3.3},      connections:['living_room','dining_room','stairs_up','stairs_down','van'], isGhostEligible:false, spawnPoint:{x:0,y:1.7,z:0} },
+  { id:'living_room',     name:'Living Room',       type:'lounge',   floor:'ground',   bounds:{min:{x:-12,y:0,z:-4},   max:{x:-4,y:3,z:4}},     closetPos:{x:-11.3,y:1.7,z:3.3},    connections:['foyer','study'], isGhostEligible:true },
+  { id:'study',           name:'Study',             type:'office',   floor:'ground',   bounds:{min:{x:-20,y:0,z:-2},   max:{x:-12,y:3,z:4}},    closetPos:{x:-19.3,y:1.7,z:3.3},    connections:['living_room'], isGhostEligible:true },
+  { id:'dining_room',     name:'Dining Room',       type:'dining',   floor:'ground',   bounds:{min:{x:4,y:0,z:-4},     max:{x:12,y:3,z:4}},     closetPos:{x:4.7,y:1.7,z:3.3},      connections:['foyer','kitchen'], isGhostEligible:true },
+  { id:'kitchen',         name:'Kitchen',           type:'kitchen',  floor:'ground',   bounds:{min:{x:4,y:0,z:4},      max:{x:12,y:3,z:12}},    closetPos:{x:11.3,y:1.7,z:11.3},    connections:['dining_room','pantry'], isGhostEligible:true },
+  { id:'pantry',          name:'Pantry',            type:'storage',  floor:'ground',   bounds:{min:{x:12,y:0,z:5},     max:{x:18,y:3,z:11}},    closetPos:{x:17.3,y:1.7,z:10.3},    connections:['kitchen'], isGhostEligible:true },
+  { id:'stairs_up',       name:'Stairs (Up)',       type:'stairwell',floor:'ground',   bounds:{min:{x:-4,y:0,z:-10},   max:{x:0,y:3,z:-4}},     closetPos:{x:-3.3,y:1.7,z:-9.3},    connections:['foyer','landing_top'], isGhostEligible:false, stairDestId:'landing_top', stairDestPos:{x:-2,y:7.7,z:-12}, stairTriggerZ:-9 },
+  { id:'stairs_down',     name:'Stairs (Down)',     type:'stairwell',floor:'ground',   bounds:{min:{x:0,y:0,z:-10},    max:{x:4,y:3,z:-4}},     closetPos:{x:3.3,y:1.7,z:-9.3},     connections:['foyer','basement_landing'], isGhostEligible:false, stairDestId:'basement_landing', stairDestPos:{x:2,y:-4.3,z:-12}, stairTriggerZ:-9 },
+  { id:'landing_top',     name:'Top Floor Landing', type:'hallway',  floor:'top',      bounds:{min:{x:-4,y:6,z:-16},   max:{x:4,y:9,z:-10}},    closetPos:{x:3.3,y:7.7,z:-15.3},    connections:['attic','guest_bedroom','bathroom_top','stairs_up'], isGhostEligible:false, stairDestId:'foyer', stairDestPos:{x:-2,y:1.7,z:-7}, stairTriggerZ:-10.5 },
+  { id:'attic',           name:'Attic Loft',        type:'storage',  floor:'top',      bounds:{min:{x:-12,y:6,z:-22},  max:{x:-4,y:9,z:-14}},   closetPos:{x:-11.3,y:7.7,z:-21.3},  connections:['landing_top','storage_closet'], isGhostEligible:true },
+  { id:'storage_closet',  name:'Storage Closet',    type:'small_room',floor:'top',     bounds:{min:{x:4,y:6,z:-22},    max:{x:10,y:9,z:-16}},   closetPos:{x:9.3,y:7.7,z:-21.3},    connections:['attic','guest_bedroom'], isGhostEligible:true },
+  { id:'guest_bedroom',   name:'Guest Bedroom',     type:'bedroom',  floor:'top',      bounds:{min:{x:-12,y:6,z:-30},  max:{x:-4,y:9,z:-22}},   closetPos:{x:-11.3,y:7.7,z:-29.3},  connections:['storage_closet','landing_top'], isGhostEligible:true },
+  { id:'bathroom_top',    name:'Top Bathroom',      type:'bathroom', floor:'top',      bounds:{min:{x:4,y:6,z:-30},    max:{x:10,y:9,z:-22}},   closetPos:{x:9.3,y:7.7,z:-29.3},    connections:['landing_top'], isGhostEligible:true },
+  { id:'basement_landing',name:'Basement Landing',  type:'hallway',  floor:'basement', bounds:{min:{x:-4,y:-6,z:-16},  max:{x:4,y:-3,z:-10}},   closetPos:{x:3.3,y:-4.3,z:-15.3},   connections:['boiler_room','cellar','laundry_room','hidden_room','stairs_down'], isGhostEligible:false, stairDestId:'foyer', stairDestPos:{x:2,y:1.7,z:-7}, stairTriggerZ:-10.5 },
+  { id:'boiler_room',     name:'Boiler Room',       type:'utility',  floor:'basement', bounds:{min:{x:-12,y:-6,z:-22}, max:{x:-4,y:-3,z:-14}},  closetPos:{x:-11.3,y:-4.3,z:-21.3}, connections:['basement_landing'], isGhostEligible:true, hasFuseBox:true, fuseBoxPos:{x:-11,y:-4,z:-15} },
+  { id:'cellar',          name:'Cellar',            type:'storage',  floor:'basement', bounds:{min:{x:4,y:-6,z:-22},   max:{x:12,y:-3,z:-14}},  closetPos:{x:11.3,y:-4.3,z:-21.3},  connections:['basement_landing'], isGhostEligible:true },
+  { id:'laundry_room',    name:'Laundry Room',      type:'utility',  floor:'basement', bounds:{min:{x:-12,y:-6,z:-30}, max:{x:-4,y:-3,z:-22}},  closetPos:{x:-11.3,y:-4.3,z:-29.3}, connections:['basement_landing'], isGhostEligible:true },
+  { id:'hidden_room',     name:'Hidden Room',       type:'secret',   floor:'basement', bounds:{min:{x:4,y:-6,z:-30},   max:{x:12,y:-3,z:-22}},  closetPos:{x:11.3,y:-4.3,z:-29.3},  connections:['basement_landing'], isGhostEligible:true },
+];
+const ROOM_MAP = Object.fromEntries(ROOMS.map(r => [r.id, r]));
+const ADJACENCY = Object.fromEntries(ROOMS.map(r => [r.id, r.connections]));
+const GHOST_ELIGIBLE_ROOMS = ROOMS.filter(r => r.isGhostEligible).map(r => r.id);
+const GHOST_ROOM_POOL = [...GHOST_ELIGIBLE_ROOMS, 'hidden_room'];
+
+function findRoomAt(x, y, z) {
+  return ROOMS.find(r => x >= r.bounds.min.x && x <= r.bounds.max.x && y >= r.bounds.min.y + PLAYER_HEIGHT * 0.5 && y <= r.bounds.max.y && z >= r.bounds.min.z && z <= r.bounds.max.z);
+}
+function roomCenter(room) {
+  return { x:(room.bounds.min.x+room.bounds.max.x)/2, y:(room.bounds.min.y+room.bounds.max.y)/2, z:(room.bounds.min.z+room.bounds.max.z)/2 };
+}
+function bfsPath(fromId, toId) {
+  if (fromId === toId) return [fromId];
+  const visited = new Set([fromId]);
+  const queue = [[fromId, [fromId]]];
+  while (queue.length) {
+    const [cur, path] = queue.shift();
+    for (const next of (ADJACENCY[cur] || [])) {
+      if (next === toId) return [...path, next];
+      if (!visited.has(next)) { visited.add(next); queue.push([next, [...path, next]]); }
+    }
+  }
+  return null;
+}
+
+// ── Local game engine (replaces the Node.js server) ──────────────────────────
+class LocalGame {
+  constructor() {
+    this._handlers = {};
+    this._phase = PHASE.LOBBY;
+    this._ghostType = null;
+    this._ghostRoomId = null;
+    this._powerEnabled = true;
+    this._triggerItemId = null;
+    this._speedBonus = 0;
+    this._player = { name:'Detective', position:{x:0,y:1.7,z:0}, rotation:{y:0}, sanity:100, isDead:false, isHiding:false, currentRoomId:'foyer', heldToolId:null, placedItems:[] };
+    this._ghost = { position:{x:0,y:1.7,z:0}, currentRoomId:null, isVisible:false };
+    this._playerLookingAtGhost = false;
+    this._vanDoorLocked = false;
+    this._evidence = { emf5Available:false, freezingTempsAvailable:false, fingerprintsAvailable:false, ghostOrbsAvailable:false, spiritBoxAvailable:false, writingAvailable:false, writingTriggered:false, fingerprintLocations:[] };
+    this._timers = [];
+    this._intervals = [];
+    this._huntInterval = null;
+  }
+
+  on(event, cb) {
+    if (!this._handlers[event]) this._handlers[event] = [];
+    this._handlers[event].push(cb);
+  }
+  _emit(event, data) {
+    for (const h of (this._handlers[event] || [])) h(data);
+  }
+
+  join(name) {
+    this._player.name = name || 'Detective';
+  }
+
+  startGame() {
+    this._phase = PHASE.INVESTIGATION;
+    this._ghostType = GHOST_TYPES[Math.floor(Math.random() * GHOST_TYPES.length)];
+    this._ghostRoomId = GHOST_ROOM_POOL[Math.floor(Math.random() * GHOST_ROOM_POOL.length)];
+    const tools = ['emf','thermometer','goggles','uv','notebook','sensor','spiritbox'];
+    this._triggerItemId = tools[Math.floor(Math.random() * tools.length)];
+
+    const ev = this._ghostType.evidence;
+    this._evidence.emf5Available          = ev.includes(EVIDENCE.EMF5);
+    this._evidence.freezingTempsAvailable = ev.includes(EVIDENCE.FREEZING_TEMPS);
+    this._evidence.fingerprintsAvailable  = ev.includes(EVIDENCE.FINGERPRINTS);
+    this._evidence.ghostOrbsAvailable     = ev.includes(EVIDENCE.GHOST_ORBS);
+    this._evidence.spiritBoxAvailable     = ev.includes(EVIDENCE.SPIRIT_BOX);
+    this._evidence.writingAvailable       = ev.includes(EVIDENCE.WRITING);
+
+    if (this._evidence.fingerprintsAvailable) this._evidence.fingerprintLocations = this._seedFingerprints();
+
+    const gc = roomCenter(ROOM_MAP[this._ghostRoomId]);
+    this._ghost.position = { x:gc.x, y:1.7, z:gc.z };
+    this._ghost.currentRoomId = this._ghostRoomId;
+
+    this._emit('game:start', { egui_triggerItemId: this._triggerItemId });
+    setTimeout(() => this._emit('evidence:fingerprintLocations', this._evidence.fingerprintLocations), 200);
+
+    this._startSanity();
+    this._startEMF();
+    this._startTemperature();
+    this._startOrbs();
+    this._scheduleWriting();
+    this._startGhostWander();
+    this._scheduleHunt();
+  }
+
+  _seedFingerprints() {
+    const room = ROOM_MAP[this._ghostRoomId];
+    const { min, max } = room.bounds;
+    const fy = min.y + 1.2;
+    const locs = [
+      { roomId:this._ghostRoomId, worldPos:{ x:(min.x+max.x)/2, y:fy, z:min.z+0.05 } },
+      { roomId:this._ghostRoomId, worldPos:{ x:(min.x+max.x)/2, y:fy, z:max.z-0.05 } },
+      { roomId:this._ghostRoomId, worldPos:{ x:min.x+0.05, y:fy, z:(min.z+max.z)/2 } },
+      { roomId:this._ghostRoomId, worldPos:{ x:max.x-0.05, y:fy, z:(min.z+max.z)/2 } },
+    ];
+    const otherRooms = ROOMS.filter(r => r.isGhostEligible && r.id !== this._ghostRoomId)
+      .sort(() => Math.random() - 0.5).slice(0, 4);
+    for (const r of otherRooms) {
+      const { min:rm, max:rx } = r.bounds;
+      locs.push({ roomId:r.id, worldPos:{ x:(rm.x+rx.x)/2, y:rm.y+1.2, z:rm.z+0.05 } });
+    }
+    return locs;
+  }
+
+  _startSanity() {
+    const id = setInterval(() => {
+      if (this._phase === PHASE.ENDED) return;
+      if (this._player.isDead || this._player.isHiding) return;
+      let drain = 0.3;
+      if (this._ghostType?.id === 'yurei') drain += 0.2;
+      if (this._ghostType?.specialAbility === 'sanityDrainOnLook' && this._phase === PHASE.HUNT && this._playerLookingAtGhost) drain += 1.5;
+      this._player.sanity = Math.max(0, this._player.sanity - drain);
+      this._emit('state:sanity', { personal: this._player.sanity });
+    }, 1000);
+    this._intervals.push(id);
+  }
+
+  _startEMF() {
+    const tick = () => {
+      if (this._phase === PHASE.ENDED) return;
+      const t = setTimeout(() => {
+        if (this._phase !== PHASE.INVESTIGATION) { tick(); return; }
+        const inGhostRoom = this._player.currentRoomId === this._ghostRoomId;
+        if (inGhostRoom) {
+          const level = this._evidence.emf5Available && Math.random() < 0.2 ? 5 : 2;
+          this._emit('evidence:emf', { level });
+        } else {
+          this._emit('evidence:emf', { level: 1 });
+        }
+        tick();
+      }, 3000 + Math.random() * 2000);
+      this._timers.push(t);
+    };
+    tick();
+  }
+
+  _startTemperature() {
+    const id = setInterval(() => {
+      if (this._phase === PHASE.ENDED) return;
+      const inGhostRoom = this._player.currentRoomId === this._ghostRoomId;
+      const temp = inGhostRoom && this._evidence.freezingTempsAvailable
+        ? parseFloat((-10 + Math.random() * 15).toFixed(1))
+        : parseFloat((15 + Math.random() * 5).toFixed(1));
+      this._emit('evidence:temperature', { temp, roomId: this._player.currentRoomId });
+    }, 2000);
+    this._intervals.push(id);
+  }
+
+  _startOrbs() {
+    const id = setInterval(() => {
+      if (this._phase === PHASE.ENDED || !this._evidence.ghostOrbsAvailable) return;
+      if (this._player.currentRoomId === this._ghostRoomId) {
+        this._emit('evidence:ghostOrbs', { active: true });
+        setTimeout(() => this._emit('evidence:ghostOrbs', { active: false }), 5000);
+      }
+    }, 10000);
+    this._intervals.push(id);
+  }
+
+  _scheduleWriting() {
+    const t = setTimeout(() => {
+      if (this._phase === PHASE.ENDED || !this._evidence.writingAvailable || this._evidence.writingTriggered) return;
+      const nbs = this._player.placedItems.filter(i => i.toolId === 'notebook' && i.roomId === this._ghostRoomId);
+      if (nbs.length > 0) {
+        const msgs = ['Get out',"You're next","Don't look behind you",'I see you','Leave now','RUN'];
+        this._evidence.writingTriggered = true;
+        this._emit('evidence:writing', { notebookId: nbs[0].notebookId, message: msgs[Math.floor(Math.random() * msgs.length)] });
+      } else {
+        this._scheduleWriting();
+      }
+    }, 25000 + Math.random() * 20000);
+    this._timers.push(t);
+  }
+
+  _startGhostWander() {
+    const wander = () => {
+      const t = setTimeout(() => {
+        if (this._phase === PHASE.ENDED) return;
+        if (this._phase !== PHASE.HUNT) {
+          const adj = ADJACENCY[this._ghost.currentRoomId] || [];
+          if (adj.length) {
+            const next = ROOM_MAP[adj[Math.floor(Math.random() * adj.length)]];
+            if (next) { const c = roomCenter(next); this._ghost.position = {x:c.x,y:1.7,z:c.z}; this._ghost.currentRoomId = next.id; }
+          }
+        }
+        wander();
+      }, 20000 * (0.5 + Math.random()));
+      this._timers.push(t);
+    };
+    wander();
+  }
+
+  _scheduleHunt() {
+    const sanity = this._player.sanity;
+    const interval = Math.max(30000, 120000 - ((100 - sanity) * 800));
+    const wt = setTimeout(() => {
+      if (this._phase !== PHASE.INVESTIGATION) return;
+      this._emit('event:huntWarning', { secsRemaining: 10 });
+    }, interval - 10000);
+    const ht = setTimeout(() => {
+      if (this._phase !== PHASE.INVESTIGATION) return;
+      this._startHunt();
+    }, interval);
+    this._timers.push(wt, ht);
+  }
+
+  get isHuntActive() { return this._phase === PHASE.HUNT; }
+  get vanDoorLocked() { return this._vanDoorLocked; }
+
+  _startHunt() {
+    this._phase = PHASE.HUNT;
+    this._vanDoorLocked = true;
+    this._ghost.isVisible = true;
+    this._emit('event:huntStart', {});
+    this._huntInterval = setInterval(() => this._huntTick(), 100);
+    const t = setTimeout(() => { this._endHunt(); clearInterval(this._huntInterval); }, 20000);
+    this._timers.push(t);
+  }
+
+  _huntTick() {
+    if (this._player.isDead || this._player.isHiding) return;
+    if (this._player.currentRoomId === 'van') return;
+    const speed = this._computeSpeed() * 0.1;
+    const gRoom = this._ghost.currentRoomId, pRoom = this._player.currentRoomId;
+    if (gRoom !== pRoom) {
+      const path = bfsPath(gRoom, pRoom);
+      if (path && path.length > 1) {
+        const nr = ROOM_MAP[path[1]];
+        if (nr && nr.id !== 'van') {
+          const c = roomCenter(nr);
+          this._moveGhost(c, speed);
+          const g = this._ghost.position;
+          if (g.x >= nr.bounds.min.x && g.x <= nr.bounds.max.x && g.z >= nr.bounds.min.z && g.z <= nr.bounds.max.z) this._ghost.currentRoomId = nr.id;
+        }
+      }
+    } else {
+      this._moveGhost(this._player.position, speed);
+    }
+    this._emit('state:ghost', { position: this._ghost.position, isVisible: true });
+    const g = this._ghost.position, p = this._player.position;
+    if (Math.sqrt((g.x-p.x)**2+(g.z-p.z)**2) < 0.8) this._killPlayer();
+  }
+
+  _moveGhost(target, speed) {
+    const g = this._ghost.position;
+    const dx = target.x - g.x, dz = target.z - g.z;
+    const len = Math.sqrt(dx*dx + dz*dz);
+    if (len < 0.01) return;
+    g.x += (dx/len)*speed; g.z += (dz/len)*speed;
+  }
+
+  _computeSpeed() {
+    const ghost = this._ghostType;
+    if (!ghost) return 1.7;
+    const base = ghost.huntBehavior.baseSpeed + this._speedBonus;
+    const mod = ghost.huntBehavior.speedModifier ?? 0;
+    const cond = ghost.huntBehavior.modifierCondition;
+    if (!cond || !mod) return base;
+    switch (cond) {
+      case 'powerOff': return !this._powerEnabled ? base + mod : base;
+      case 'farFromPlayer': {
+        const g = this._ghost.position, p = this._player.position;
+        return Math.sqrt((g.x-p.x)**2+(g.z-p.z)**2) > (ghost.huntBehavior.proximityThreshold ?? 5) ? base + mod : base;
+      }
+      case 'playerSanityBelow30': return this._player.sanity < 30 ? base + mod : base;
+      case 'playerHoldingTriggerItem': return this._player.heldToolId === this._triggerItemId ? base + mod : base;
+      default: return base;
+    }
+  }
+
+  _killPlayer() {
+    if (this._player.isDead) return;
+    this._player.isDead = true;
+    this._emit('event:playerDied', { playerId:'local', name: this._player.name });
+    if (this._ghostType?.specialAbility === 'permanentSpeedOnDeath') this._speedBonus += this._ghostType.huntBehavior.speedModifier;
+    this._phase = PHASE.ENDED;
+    this._stopAll();
+    setTimeout(() => this._emit('game:ended', { result:'failure', ghostType:this._ghostType, ghostRoom:this._ghostRoomId, reason:'You were claimed by the ghost.' }), 2000);
+  }
+
+  _endHunt() {
+    if (this._phase === PHASE.ENDED) return;
+    this._phase = PHASE.INVESTIGATION;
+    this._vanDoorLocked = false;
+    this._ghost.isVisible = false;
+    this._emit('event:huntEnd', {});
+    this._emit('state:ghost', { position: this._ghost.position, isVisible: false });
+    this._scheduleHunt();
+  }
+
+  _stopAll() {
+    clearInterval(this._huntInterval);
+    for (const t of this._timers) clearTimeout(t);
+    for (const i of this._intervals) clearInterval(i);
+  }
+
+  sendLookingAtGhost(looking) { this._playerLookingAtGhost = looking; }
+  sendMove(pos, rot, roomId) {
+    this._player.position = { x:pos.x, y:pos.y, z:pos.z };
+    this._player.rotation = { y:rot };
+    if (roomId) this._player.currentRoomId = roomId;
+  }
+  sendToolHeld(toolId) { this._player.heldToolId = toolId; }
+  sendHiding(hiding) { this._player.isHiding = hiding; }
+  togglePower() {
+    this._powerEnabled = !this._powerEnabled;
+    this._emit('event:powerToggle', { enabled: this._powerEnabled });
+  }
+  submitGuess(ghostId) {
+    if (this._phase === PHASE.ENDED) return;
+    if (this._ghostType?.id === ghostId) {
+      this._phase = PHASE.ENDED;
+      this._stopAll();
+      this._emit('game:ended', { result:'success', ghostType:this._ghostType, ghostRoom:this._ghostRoomId, solvedBy:this._player.name });
+    } else {
+      this._emit('game:incorrect', { guess: ghostId });
+    }
+  }
+  askSpiritBox(questionId) {
+    if (!this._evidence.spiritBoxAvailable || this._player.currentRoomId !== this._ghostRoomId) return;
+    const responses = ['Leave...','Get out',"You shouldn't be here",'Help me',"I'm watching you",'Run',"You're next",'I see you','Go away'];
+    setTimeout(() => this._emit('evidence:spiritBoxResponse', { response: responses[Math.floor(Math.random()*responses.length)] }), 500 + Math.random()*1000);
+  }
+  placeNotebook(worldPos) {
+    const notebookId = `nb_${Date.now()}`;
+    this._player.placedItems.push({ toolId:'notebook', roomId:this._player.currentRoomId, notebookId, worldPos });
+    this._emit('evidence:notebookPlaced', { notebookId, roomId:this._player.currentRoomId, worldPos });
+    this._scheduleWriting();
+  }
+  placeMotionSensor(worldPos) {
+    const sensorId = `sensor_${Date.now()}`;
+    const roomId = this._player.currentRoomId;
+    this._player.placedItems.push({ toolId:'motionSensor', roomId, sensorId, worldPos });
+    this._emit('evidence:sensorPlaced', { sensorId, roomId, worldPos });
+    const tick = () => {
+      if (this._phase === PHASE.ENDED) return;
+      const t = setTimeout(() => {
+        if (this._ghost.currentRoomId === roomId) {
+          const dur = 1000 + Math.random()*1000;
+          this._emit('evidence:motionSensor', { sensorId, active:true });
+          setTimeout(() => this._emit('evidence:motionSensor', { sensorId, active:false }), dur);
+        }
+        tick();
+      }, 5000 + Math.random()*5000);
+      this._timers.push(t);
+    };
+    tick();
+  }
+}
+
+// ── SceneManager ─────────────────────────────────────────────────────────────
+class SceneManager {
+  constructor() {
+    this.scene = new THREE.Scene();
+    this.scene.fog = new THREE.FogExp2(0x000000, 0.04);
+    this.camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 120);
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.renderer.setSize(innerWidth, innerHeight);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 0.85;
+    document.body.prepend(this.renderer.domElement);
+    this._setupComposer();
+    window.addEventListener('resize', () => {
+      this.camera.aspect = innerWidth/innerHeight;
+      this.camera.updateProjectionMatrix();
+      this.renderer.setSize(innerWidth, innerHeight);
+      this.composer.setSize(innerWidth, innerHeight);
+    });
+  }
+  _setupComposer() {
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    const nvShader = {
+      uniforms: { tDiffuse:{value:null}, uActive:{value:0.0} },
+      vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+      fragmentShader: `uniform sampler2D tDiffuse; uniform float uActive; varying vec2 vUv;
+        void main(){ vec4 col=texture2D(tDiffuse,vUv); float lum=dot(col.rgb,vec3(0.299,0.587,0.114)); vec3 nv=vec3(0.0,lum*2.0,0.0); gl_FragColor=vec4(mix(col.rgb,nv,uActive),col.a); }`,
+    };
+    this.nvPass = new ShaderPass(nvShader);
+    this.composer.addPass(this.nvPass);
+  }
+  setNightVision(on) {
+    this.nvPass.uniforms.uActive.value = on ? 1.0 : 0.0;
+    document.getElementById('nv-overlay').style.opacity = on ? '1' : '0';
+  }
+  get nightVisionActive() { return this.nvPass.uniforms.uActive.value > 0.5; }
+  render() { this.composer.render(); }
+}
+
+// ── RoomManager ──────────────────────────────────────────────────────────────
+class RoomManager {
+  constructor(scene) {
+    this.scene = scene;
+    this._currentRoomId = 'foyer';
+    this._buildAll();
+  }
+  _buildAll() {
+    const WALL_MATS = { entrance:0x2e2620, lounge:0x28201a, office:0x1e1a14, dining:0x2a2018, kitchen:0x1a1c14, storage:0x161412, hallway:0x1c1814, utility:0x121210, bedroom:0x241c18, bathroom:0x1a1c1e, small_room:0x161412, stairwell:0x141210, secret:0x100e0c };
+    const FLOOR_MATS = { ground:0x2a1f14, top:0x1a1510, basement:0x111008 };
+    const CEIL_MATS  = { ground:0x1c1612, top:0x141010, basement:0x0a0a08 };
+    for (const room of ROOMS) {
+      const { min, max } = room.bounds;
+      const W = max.x-min.x, H = max.y-min.y, D = max.z-min.z;
+      const cx=(min.x+max.x)/2, cy=(min.y+max.y)/2, cz=(min.z+max.z)/2;
+      const wc = WALL_MATS[room.type] ?? 0x161412;
+      const wm = new THREE.MeshStandardMaterial({ color:wc, roughness:0.95 });
+      const fm = new THREE.MeshStandardMaterial({ color:FLOOR_MATS[room.floor]??0x2a1f14, roughness:1 });
+      const cm = new THREE.MeshStandardMaterial({ color:CEIL_MATS[room.floor]??0x1c1612, roughness:1 });
+      const addPlane = (w,h,mat,px,py,pz,ry) => { const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),mat); m.position.set(px,py,pz); m.rotation.y=ry; this.scene.add(m); };
+      const fl=new THREE.Mesh(new THREE.PlaneGeometry(W,D),fm); fl.rotation.x=-Math.PI/2; fl.position.set(cx,min.y,cz); fl.receiveShadow=true; this.scene.add(fl);
+      const ce=new THREE.Mesh(new THREE.PlaneGeometry(W,D),cm); ce.rotation.x=Math.PI/2; ce.position.set(cx,max.y,cz); this.scene.add(ce);
+      const hasDoor=(face)=>{
+        for(const cid of room.connections){ const c=ROOM_MAP[cid]; if(!c) continue; const cb=c.bounds;
+          if(face==='north'&&Math.abs(cb.max.z-min.z)<0.1&&min.x<cb.max.x&&cb.min.x<max.x) return true;
+          if(face==='south'&&Math.abs(cb.min.z-max.z)<0.1&&min.x<cb.max.x&&cb.min.x<max.x) return true;
+          if(face==='west'&&Math.abs(cb.max.x-min.x)<0.1&&min.z<cb.max.z&&cb.min.z<max.z) return true;
+          if(face==='east'&&Math.abs(cb.min.x-max.x)<0.1&&min.z<cb.max.z&&cb.min.z<max.z) return true;
+        } return false;
+      };
+      const addWall=(w,h,hasDoor,px,py,pz,ry)=>{
+        if(!hasDoor){ addPlane(w,h,wm,px,py,pz,ry); return; }
+        const dw=Math.min(DOOR_WIDTH,w-0.4), dh=Math.min(DOOR_HEIGHT,h-0.1), sw=(w-dw)/2, hh=h-dh;
+        if(sw>0.05){ addPlane(sw,h,wm,px-(dw/2+sw/2)*Math.cos(ry),py,pz+(dw/2+sw/2)*Math.sin(ry),ry); addPlane(sw,h,wm,px+(dw/2+sw/2)*Math.cos(ry),py,pz-(dw/2+sw/2)*Math.sin(ry),ry); }
+        if(hh>0.05){ addPlane(dw,hh,wm,px,py+(h-hh)/2,pz,ry); }
+      };
+      addWall(W,H,hasDoor('north'),cx,cy,min.z,0);
+      addWall(W,H,hasDoor('south'),cx,cy,max.z,Math.PI);
+      addWall(D,H,hasDoor('west'),min.x,cy,cz,Math.PI/2);
+      addWall(D,H,hasDoor('east'),max.x,cy,cz,-Math.PI/2);
+      // Closet marker
+      const cp=room.closetPos;
+      const cm2=new THREE.Mesh(new THREE.BoxGeometry(0.8,1.8,0.8),new THREE.MeshBasicMaterial({color:0x334433,wireframe:true}));
+      cm2.position.set(cp.x,cp.y-0.1,cp.z); this.scene.add(cm2);
+    }
+  }
+  updateCurrentRoom(x,y,z) { const r=findRoomAt(x,y,z); if(r) this._currentRoomId=r.id; return this._currentRoomId; }
+  getRoomData(id) { return ROOM_MAP[id]; }
+}
+
+// ── HouseDetails ─────────────────────────────────────────────────────────────
+class HouseDetails {
+  constructor(scene) {
+    this.scene = scene;
+    this._initMaterials();
+    this._buildCanvasTextures();
+    this.build();
+  }
+
+  _initMaterials() {
+    const M = (c,r,ex={}) => new THREE.MeshStandardMaterial({color:c,roughness:r,...ex});
+    this.MAT = {
+      trim:    M(0x0d0a06,0.7),
+      stair:   M(0x1a1008,0.9),
+      darkWood:M(0x180f05,0.85),
+      aged:    M(0x231a10,0.9),
+      fabric:  M(0x1c1515,1.0),
+      metal:   M(0x1a1a1a,0.4,{metalness:0.7}),
+      ceramic: M(0x1a1c1a,0.6),
+      paper:   M(0x1e1b14,1.0,{side:THREE.DoubleSide}),
+      cobweb:   M(0x888880,1.0,{transparent:true,opacity:0.22,side:THREE.DoubleSide}),
+      vanMetal: M(0x2a2a2e,0.5,{metalness:0.6}),
+      vanScreen:M(0x112211,0.5,{emissive:new THREE.Color(0x00aa55),emissiveIntensity:0.5}),
+      vanStrip: M(0xfff8ee,0.1,{emissive:new THREE.Color(0xfff5cc),emissiveIntensity:3.0}),
+    };
+  }
+
+  _buildCanvasTextures() {
+    this.TEX = {};
+    const wc=document.createElement('canvas'); wc.width=wc.height=256;
+    const wx=wc.getContext('2d');
+    wx.fillStyle='#2a1f14'; wx.fillRect(0,0,256,256);
+    wx.strokeStyle='#1a1208'; wx.lineWidth=2;
+    for(let i=0;i<8;i++){const y=(i+.5)*32;wx.beginPath();wx.moveTo(0,y);wx.lineTo(256,y);wx.stroke();}
+    wx.strokeStyle='#321a0a'; wx.lineWidth=0.8;
+    for(let i=0;i<30;i++){const y=Math.random()*256;wx.beginPath();wx.moveTo(0,y);wx.lineTo(256,y);wx.stroke();}
+    this.TEX.floor=new THREE.CanvasTexture(wc);
+    this.TEX.floor.wrapS=this.TEX.floor.wrapT=THREE.RepeatWrapping;
+    this.TEX.floor.repeat.set(4,4);
+    const pc=document.createElement('canvas'); pc.width=pc.height=256;
+    const px=pc.getContext('2d'),pd=px.createImageData(256,256);
+    for(let i=0;i<pd.data.length;i+=4){const v=28+Math.random()*14;pd.data[i]=v|0;pd.data[i+1]=(v*.84)|0;pd.data[i+2]=(v*.68)|0;pd.data[i+3]=255;}
+    px.putImageData(pd,0,0);
+    this.TEX.plaster=new THREE.CanvasTexture(pc);
+    this.TEX.plaster.wrapS=this.TEX.plaster.wrapT=THREE.RepeatWrapping;
+    this.TEX.plaster.repeat.set(3,2);
+    const bc=document.createElement('canvas'); bc.width=256; bc.height=128;
+    const bx=bc.getContext('2d');
+    bx.fillStyle='#1a1210'; bx.fillRect(0,0,256,128);
+    bx.fillStyle='#0c0908';
+    for(let row=0;row<8;row++){bx.fillRect(0,row*16,256,2);const off=(row%2)*32;for(let col=0;col<5;col++)bx.fillRect(col*64+off,row*16,2,16);}
+    this.TEX.brick=new THREE.CanvasTexture(bc);
+    this.TEX.brick.wrapS=this.TEX.brick.wrapT=THREE.RepeatWrapping;
+    this.TEX.brick.repeat.set(4,2);
+  }
+
+  _box(w,h,d,mat,x,y,z,ry=0,shadow=true) {
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+    m.position.set(x,y,z); if(ry)m.rotation.y=ry;
+    m.castShadow=shadow; m.receiveShadow=true; this.scene.add(m); return m;
+  }
+  _cyl(rt,rb,h,segs,mat,x,y,z) {
+    const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,segs),mat);
+    m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; this.scene.add(m); return m;
+  }
+
+  build() {
+    for(const room of ROOMS) {
+      if(room.id==='van') { this._furnishVan(room); continue; }
+      if(room.type!=='stairwell') {
+        this._addTrim(room);
+        this._addDoorFrames(room);
+        this._addFurniture(room);
+        this._addTextureOverlays(room);
+      }
+      if(room.type==='storage'||room.type==='secret') this._addAtmospherics(room);
+    }
+    this._addStairs();
+  }
+
+  _furnishVan(room) {
+    const {min,max}=room.bounds;
+    const W=max.x-min.x, H=max.y-min.y, D=max.z-min.z;
+    const cx=(min.x+max.x)/2, cz=(min.z+max.z)/2;
+    const SL=this.MAT.vanStrip;
+    const M=(c,r,ex={})=>new THREE.MeshStandardMaterial({color:c,roughness:r,...ex});
+
+    // Woody palette
+    const pineM   = M(0x9C6B3C,0.9);                          // pine — main wall panels
+    const cedarM  = M(0xB07D4A,0.85);                          // cedar — ceiling
+    const walnutM = M(0x4A2E12,0.95);                          // walnut — battens & accents
+    const oakM    = M(0x5C3A1A,0.95);                          // dark oak — shelves & arches
+    const doorM   = M(0x8B5E30,0.9);                           // medium pine — door panels
+    const brassM  = M(0x8B6914,0.3,{metalness:0.75});          // brass — handles
+    const screenM = M(0x0d2010,0.5,{emissive:new THREE.Color(0x00aa55),emissiveIntensity:0.5});
+
+    const plane=(geo,mat,px,py,pz,rx=0,ry=0)=>{
+      const m=new THREE.Mesh(geo,mat); m.position.set(px,py,pz);
+      m.rotation.x=rx; m.rotation.y=ry; m.receiveShadow=true; this.scene.add(m);
+    };
+
+    // --- Wood panel walls ---
+    plane(new THREE.PlaneGeometry(D,H), pineM,  min.x+0.04, min.y+H/2, cz, 0,  Math.PI/2);  // left
+    plane(new THREE.PlaneGeometry(D,H), pineM,  max.x-0.04, min.y+H/2, cz, 0, -Math.PI/2);  // right
+    plane(new THREE.PlaneGeometry(W,D), cedarM, cx, max.y-0.04, cz, Math.PI/2, 0);           // ceiling
+    plane(new THREE.PlaneGeometry(W,H), pineM,  cx, min.y+H/2, max.z-0.04, 0, Math.PI);      // back partition
+    // Wood plank floor using canvas texture
+    const floorMesh=new THREE.Mesh(new THREE.PlaneGeometry(W,D),
+      new THREE.MeshStandardMaterial({map:this.TEX.floor, roughness:0.95}));
+    floorMesh.position.set(cx,min.y+0.01,cz); floorMesh.rotation.x=-Math.PI/2;
+    floorMesh.receiveShadow=true; this.scene.add(floorMesh);
+
+    // --- Horizontal plank battens on side walls (wood-paneling look) ---
+    for(let y=0.38; y<=H-0.15; y+=0.38){
+      this._box(D,0.045,0.05, walnutM, min.x+0.06, min.y+y, cz, 0,false);
+      this._box(D,0.045,0.05, walnutM, max.x-0.06, min.y+y, cz, 0,false);
+    }
+    // Ceiling planks running along length
+    for(let z=min.z+0.45; z<max.z; z+=0.85){
+      this._box(W,0.045,0.05, walnutM, cx, max.y-0.06, z, 0,false);
+    }
+    // Corner pilasters (vertical trim where walls meet ceiling)
+    this._box(0.06,H,0.06, walnutM, min.x+0.06, min.y+H/2, min.z+0.06, 0,false);
+    this._box(0.06,H,0.06, walnutM, max.x-0.06, min.y+H/2, min.z+0.06, 0,false);
+    this._box(0.06,H,0.06, walnutM, min.x+0.06, min.y+H/2, max.z-0.06, 0,false);
+    this._box(0.06,H,0.06, walnutM, max.x-0.06, min.y+H/2, max.z-0.06, 0,false);
+
+    // --- Rear double doors (z = min.z, opens toward foyer) ---
+    this._box(W/2-0.09,H-0.09,0.08, doorM, cx-W/4, min.y+H/2, min.z+0.05, 0,false); // left panel
+    this._box(W/2-0.09,H-0.09,0.08, doorM, cx+W/4, min.y+H/2, min.z+0.05, 0,false); // right panel
+    // Horizontal rails on each door
+    for(const dxSign of [-1,1]){
+      const dx=cx+dxSign*W/4;
+      this._box(W/2-0.14,0.07,0.07, walnutM, dx, min.y+0.28,   min.z+0.1, 0,false);
+      this._box(W/2-0.14,0.07,0.07, walnutM, dx, min.y+H/2,    min.z+0.1, 0,false);
+      this._box(W/2-0.14,0.07,0.07, walnutM, dx, min.y+H-0.28, min.z+0.1, 0,false);
+    }
+    // Centre divider + top rail
+    this._box(0.09,H,0.09,    walnutM, cx,       min.y+H/2, min.z+0.07, 0,false);
+    this._box(W,   0.09,0.09, walnutM, cx,       max.y-0.05,min.z+0.07, 0,false);
+    // Brass handles
+    this._box(0.07,0.24,0.08, brassM, cx-0.22, min.y+H/2, min.z+0.16, 0,false);
+    this._box(0.07,0.24,0.08, brassM, cx+0.22, min.y+H/2, min.z+0.16, 0,false);
+
+    // --- Cab partition pass-through window ---
+    this._box(1.5,0.62,0.07, M(0x1c2a1c,0.3), cx, min.y+H-0.82, max.z-0.05, 0,false);
+
+    // --- Wooden overhead shelves above tool rows ---
+    this._box(0.9,0.07,4.8, oakM, min.x+1.15,2.65,8.75, 0,false);
+    this._box(0.9,0.07,4.8, oakM, max.x-1.15,2.65,8.75, 0,false);
+    for(let z=6.5; z<=11; z+=2.25){
+      this._box(0.06,0.48,0.06, oakM, min.x+0.70,2.42,z, 0,false);
+      this._box(0.06,0.48,0.06, oakM, max.x-0.70,2.42,z, 0,false);
+    }
+
+    // --- Wheel arches (oak) ---
+    this._box(0.45,0.45,2.2, oakM, min.x+0.22,0.23,12.0, 0,false);
+    this._box(0.45,0.45,2.2, oakM, max.x-0.22,0.23,12.0, 0,false);
+
+    // --- Entrance step ---
+    this._box(2.2,0.15,0.4, oakM, cx,0.15,min.z+0.3, 0,false);
+
+    // --- Back-wall command desk (dark oak) ---
+    this._box(3.2,0.08,0.85, oakM,    cx,1.15,max.z-0.5,  0,true);
+    this._box(0.1,0.7,0.1,   oakM,    cx,1.55,max.z-0.56, 0,false);
+    this._box(1.72,1.12,0.06,walnutM, cx,2.1, max.z-0.12, 0,false);   // monitor frame
+    this._box(1.6, 1.0, 0.04,screenM, cx,2.1, max.z-0.10, 0,false);   // screen
+
+    // --- Ceiling strip lights framed in cedar ---
+    this._box(4.4,0.09,0.42, cedarM, cx,max.y-0.05,7.4,  0,false); // frame
+    this._box(4.4,0.09,0.42, cedarM, cx,max.y-0.05,11.6, 0,false);
+    this._box(4.0,0.04,0.28, SL,     cx,max.y-0.02,7.4,  0,false); // emissive panel
+    this._box(4.0,0.04,0.28, SL,     cx,max.y-0.02,11.6, 0,false);
+
+    // Warm amber point lights (no flicker — safe zone)
+    const l1=new THREE.PointLight(0xffddaa,4.0,14,2);
+    l1.position.set(cx,max.y-0.18,7.4);  this.scene.add(l1);
+    const l2=new THREE.PointLight(0xffddaa,4.0,14,2);
+    l2.position.set(cx,max.y-0.18,11.6); this.scene.add(l2);
+  }
+
+  _addTrim(room) {
+    const {min,max}=room.bounds, T=this.MAT.trim;
+    const W=max.x-min.x, D=max.z-min.z, cx=(min.x+max.x)/2, cz=(min.z+max.z)/2;
+    const fy=min.y+0.025, cy=max.y-0.025;
+    this._box(W,.05,.06,T,cx,fy,min.z+.03,0,false);
+    this._box(W,.05,.06,T,cx,fy,max.z-.03,0,false);
+    this._box(.06,.05,D,T,min.x+.03,fy,cz,0,false);
+    this._box(.06,.05,D,T,max.x-.03,fy,cz,0,false);
+    this._box(W,.05,.06,T,cx,cy,min.z+.03,0,false);
+    this._box(W,.05,.06,T,cx,cy,max.z-.03,0,false);
+    this._box(.06,.05,D,T,min.x+.03,cy,cz,0,false);
+    this._box(.06,.05,D,T,max.x-.03,cy,cz,0,false);
+  }
+
+  _addDoorFrames(room) {
+    const {min,max}=room.bounds, T=this.MAT.trim, jW=.08;
+    for(const cid of room.connections) {
+      const c=ROOM_MAP[cid]; if(!c) continue;
+      const cb=c.bounds;
+      if(Math.abs(cb.max.z-min.z)<.15) {
+        const x0=Math.max(min.x,cb.min.x),x1=Math.min(max.x,cb.max.x);
+        if(x1>x0){const dcx=(x0+x1)/2;
+          this._box(jW,DOOR_HEIGHT,jW,T,dcx-DOOR_WIDTH/2-jW/2,min.y+DOOR_HEIGHT/2,min.z,0,false);
+          this._box(jW,DOOR_HEIGHT,jW,T,dcx+DOOR_WIDTH/2+jW/2,min.y+DOOR_HEIGHT/2,min.z,0,false);
+          this._box(DOOR_WIDTH+jW*2,jW,jW,T,dcx,min.y+DOOR_HEIGHT+jW/2,min.z,0,false);}
+      }
+      if(Math.abs(cb.min.x-max.x)<.15) {
+        const z0=Math.max(min.z,cb.min.z),z1=Math.min(max.z,cb.max.z);
+        if(z1>z0){const dcz=(z0+z1)/2;
+          this._box(jW,DOOR_HEIGHT,jW,T,max.x,min.y+DOOR_HEIGHT/2,dcz-DOOR_WIDTH/2-jW/2,0,false);
+          this._box(jW,DOOR_HEIGHT,jW,T,max.x,min.y+DOOR_HEIGHT/2,dcz+DOOR_WIDTH/2+jW/2,0,false);
+          this._box(jW,jW,DOOR_WIDTH+jW*2,T,max.x,min.y+DOOR_HEIGHT+jW/2,dcz,0,false);}
+      }
+    }
+  }
+
+  _addStairs() {
+    const SM=this.MAT.stair, RM=this.MAT.metal;
+    const RISE=3/8, RUN=6/8, STEPS=8;
+    for(let i=0;i<STEPS;i++){const h=RISE*(i+1);this._box(4,h,RUN,SM,-2,h/2,-4-RUN/2-i*RUN);}
+    const rLen=Math.sqrt(45), dir=new THREE.Vector3(0,3,-6).normalize();
+    const r1=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,rLen,6),RM);
+    r1.position.set(-.2,1.5,-7); r1.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+    r1.castShadow=true; this.scene.add(r1);
+    this._cyl(.04,.04,1,6,RM,-.2,.5,-4.5);
+    this._cyl(.04,.04,1,6,RM,-.2,2.5,-9.5);
+    for(let i=0;i<STEPS;i++){const h=RISE*(i+1);this._box(4,h,RUN,SM,2,h/2,-4-RUN/2-i*RUN);}
+    const r2=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,rLen,6),RM);
+    r2.position.set(.2,1.5,-7); r2.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+    r2.castShadow=true; this.scene.add(r2);
+    this._cyl(.04,.04,1,6,RM,.2,.5,-4.5);
+    this._cyl(.04,.04,1,6,RM,.2,2.5,-9.5);
+  }
+
+  _addFurniture(room) {
+    ({lounge:()=>this._furnishLounge(room),office:()=>this._furnishOffice(room),
+      dining:()=>this._furnishDining(room),kitchen:()=>this._furnishKitchen(room),
+      bedroom:()=>this._furnishBedroom(room),utility:()=>this._furnishUtility(room),
+      storage:()=>this._furnishStorage(room),entrance:()=>this._furnishEntrance(room),
+      hallway:()=>this._furnishHallway(room),small_room:()=>this._furnishSmallRoom(room),
+      bathroom:()=>this._furnishBathroom(room)})[room.type]?.();
+  }
+
+  _furnishLounge(room) {
+    const {min}=room.bounds, [D,F,A]=[this.MAT.darkWood,this.MAT.fabric,this.MAT.aged];
+    this._box(2.4,.65,.85,F,-8,min.y+.325,min.z+.53);
+    this._box(2.4,.55,.12,F,-8,min.y+.975,min.z+.16);
+    this._box(.15,.75,.85,F,-9.275,min.y+.375,min.z+.53);
+    this._box(.15,.75,.85,F,-6.725,min.y+.375,min.z+.53);
+    this._box(.22,1.6,.45,A,min.x+.11,min.y+.8,-.52);
+    this._box(.22,1.6,.45,A,min.x+.11,min.y+.8,.52);
+    this._box(.28,.18,1.4,D,min.x+.14,min.y+1.69,0);
+    this._box(.45,.06,1.1,A,min.x+.22,min.y+.03,0);
+    this._box(.38,2.2,1.2,D,-4.19,min.y+1.1,-1.8);
+    for(let i=1;i<=3;i++)this._box(.35,.05,1.1,D,-4.19,min.y+i*.55,-1.8,0,false);
+  }
+
+  _furnishOffice(room) {
+    const {min,max}=room.bounds, [D,A,M]=[this.MAT.darkWood,this.MAT.aged,this.MAT.metal];
+    this._box(3.4,.07,.75,D,-14.3,min.y+.76,min.z+.38);
+    this._box(.75,.07,2.0,D,max.x-.38,min.y+.76,min.z+1.0);
+    for(const [lx,lz] of [[-15.8,min.z+.04],[-12.8,min.z+.04],[-15.8,min.z+.72],[-12.8,min.z+.72]])
+      this._cyl(.04,.04,.76,6,D,lx,min.y+.38,lz);
+    this._cyl(.015,.015,.55,6,M,-13.2,min.y+1.11,min.z+.38);
+    this._cyl(.14,.10,.06,8,M,-13.2,min.y+1.41,min.z+.38);
+    this._box(.55,.06,.5,A,-14.5,min.y+.48,min.z+1.3);
+    this._box(.55,.55,.06,A,-14.5,min.y+.82,min.z+1.52);
+    this._box(.38,2.2,1.4,D,max.x-.19,min.y+1.1,1.5);
+    for(let i=1;i<=3;i++)this._box(.35,.05,1.3,D,max.x-.19,min.y+i*.55,1.5,0,false);
+  }
+
+  _furnishDining(room) {
+    const {min}=room.bounds, [D,A]=[this.MAT.darkWood,this.MAT.aged];
+    this._box(2.2,.08,1.1,D,8,min.y+.83,0);
+    for(const [lx,lz] of [[7.2,-.4],[8.8,-.4],[7.2,.4],[8.8,.4]])
+      this._cyl(.055,.055,.82,6,D,lx,min.y+.41,lz);
+    this._box(.52,.05,.46,A,8,min.y+.45,-.95);
+    this._box(.52,.55,.05,A,8,min.y+.78,-1.18);
+    for(const [lx,lz] of [[7.75,-.73],[8.25,-.73],[7.75,-1.18],[8.25,-1.18]])
+      this._box(.04,.44,.04,D,lx,min.y+.22,lz,0,false);
+    this._box(.52,.05,.46,A,8,min.y+.45,.95);
+    this._box(.52,.55,.05,A,8,min.y+.78,1.18);
+    for(const [lx,lz] of [[7.75,.73],[8.25,.73],[7.75,1.18],[8.25,1.18]])
+      this._box(.04,.44,.04,D,lx,min.y+.22,lz,0,false);
+    this._box(.46,.05,.52,A,6.6,min.y+.45,0);
+    this._box(.05,.55,.52,A,6.38,min.y+.78,0);
+    for(const [lx,lz] of [[6.38,-.22],[6.38,.22],[6.82,-.22],[6.82,.22]])
+      this._box(.04,.44,.04,D,lx,min.y+.22,lz,0,false);
+    this._box(.46,.05,.52,A,9.4,min.y+.45,0);
+    this._box(.05,.55,.52,A,9.62,min.y+.78,0);
+    for(const [lx,lz] of [[9.18,-.22],[9.18,.22],[9.62,-.22],[9.62,.22]])
+      this._box(.04,.44,.04,D,lx,min.y+.22,lz,0,false);
+  }
+
+  _furnishKitchen(room) {
+    const {min,max}=room.bounds, [A,M,C]=[this.MAT.aged,this.MAT.metal,this.MAT.ceramic];
+    this._box(6.0,.95,.65,A,7.5,min.y+.475,min.z+.325);
+    this._box(6.0,.04,.65,C,7.5,min.y+.97,min.z+.325,0,false);
+    this._box(.65,.95,4.5,A,max.x-.325,min.y+.475,6.75);
+    this._box(.65,.04,4.5,C,max.x-.325,min.y+.97,6.75,0,false);
+    this._box(.85,.04,.7,M,8.5,min.y+.99,min.z+.35,0,false);
+    for(const [bx,bz] of [[8.1,min.z+.2],[8.9,min.z+.2],[8.1,min.z+.5],[8.9,min.z+.5]])
+      this._cyl(.1,.1,.04,8,M,bx,min.y+1.03,bz);
+    this._box(.7,1.9,.7,A,min.x+.35,min.y+.95,max.z-.35);
+    this._box(.7,.06,.7,M,min.x+.35,min.y+1.93,max.z-.35,0,false);
+  }
+
+  _furnishBedroom(room) {
+    const {min,max}=room.bounds, [D,F,A]=[this.MAT.darkWood,this.MAT.fabric,this.MAT.aged];
+    const bx=max.x-1.1;
+    this._box(2.2,.35,3.5,D,bx,min.y+.175,-23.87);
+    this._box(2.2,.78,.12,D,bx,min.y+.56,max.z-.06);
+    this._box(2.0,.25,3.2,F,bx,min.y+.475,-23.87);
+    this._box(.78,.12,.5,F,bx,min.y+.72,max.z-.5);
+    this._box(.5,2.4,1.2,D,min.x+.25,min.y+1.2,-25.5);
+    this._box(.48,.6,.42,A,bx-1.35,min.y+.3,max.z-1.1);
+  }
+
+  _furnishUtility(room) {
+    const {min,max}=room.bounds, [A,M]=[this.MAT.aged,this.MAT.metal], fy=min.y;
+    if(room.id==='boiler_room') {
+      this._cyl(.7,.7,2.4,12,A,-8,fy+1.2,-18);
+      this._cyl(.72,.72,.1,12,M,-8,fy+2.45,-18);
+      this._cyl(.72,.72,.1,12,M,-8,fy+.05,-18);
+      this._box(3.0,.12,.12,M,-8,fy+2.3,-18.5,0,false);
+      this._box(.12,1.8,.12,M,-10.8,fy+1.6,-15.1,0,false);
+      this._box(.08,.58,.44,M,min.x+.04,fy+2.0,-15);
+    } else {
+      this._box(.75,1.0,.7,A,-9.5,fy+.5,max.z-.35);
+      this._box(.75,1.0,.7,A,-8.5,fy+.5,max.z-.35);
+      this._box(.75,.04,.7,M,-9.5,fy+1.02,max.z-.35,0,false);
+      this._box(.75,.04,.7,M,-8.5,fy+1.02,max.z-.35,0,false);
+      this._cyl(.3,.25,.55,8,A,-7.0,fy+.275,max.z-.5);
+    }
+  }
+
+  _furnishStorage(room) {
+    const {min,max}=room.bounds, [A,D]=[this.MAT.aged,this.MAT.darkWood], fy=min.y;
+    const cx=(min.x+max.x)/2, cz=(min.z+max.z)/2, cp=room.closetPos;
+    const fxMax=cp.x<cx, fzMax=cp.z<cz;
+    const sx=fxMax?max.x-.55:min.x+.55, sz=fzMax?max.z-.55:min.z+.55;
+    const dx=fxMax?-.7:.7, dz=fzMax?-.7:.7;
+    this._box(.7,.55,.65,A,sx,fy+.275,sz);
+    this._box(.65,.50,.60,A,sx+dx,fy+.25,sz);
+    this._box(.72,.55,.68,A,sx,fy+.275,sz+dz);
+    this._box(.65,.50,.60,A,sx,fy+.80,sz);
+    this._box(.9,.42,.5,D,sx+dx,fy+.21,sz+dz);
+    this._box(.9,.09,.5,A,sx+dx,fy+.465,sz+dz,0,false);
+  }
+
+  _furnishEntrance(room) {
+    const {min}=room.bounds, M=this.MAT.metal, fy=min.y;
+    // Coat rack in NW corner (all walls have doors — keep furniture away from centres)
+    this._cyl(.04,.04,1.8,6,M,min.x+.6,fy+.9,min.z+.6);
+    for(let i=0;i<3;i++){
+      const a=(i/3)*Math.PI*2;
+      const hm=new THREE.Mesh(new THREE.SphereGeometry(.06,6,6),M);
+      hm.position.set(min.x+.6+Math.cos(a)*.1,fy+1.65+i*.1,min.z+.6+Math.sin(a)*.1);
+      hm.castShadow=false; this.scene.add(hm);
+    }
+  }
+
+  _furnishHallway(room) {
+    const {min,max}=room.bounds, D=this.MAT.darkWood, fy=min.y;
+    const cx=(min.x+max.x)/2, cz=(min.z+max.z)/2;
+    this._box(1.2,.06,.4,D,cx,fy+.82,cz);
+    for(const [lx,lz] of [[cx-.5,cz-.16],[cx+.5,cz-.16],[cx-.5,cz+.16],[cx+.5,cz+.16]])
+      this._cyl(.03,.03,.82,5,D,lx,fy+.41,lz);
+  }
+
+  _furnishSmallRoom(room) {
+    const {min,max}=room.bounds, A=this.MAT.aged, fy=min.y, cz=(min.z+max.z)/2;
+    this._box(.6,.05,3.8,A,min.x+.32,fy+1.5,cz,0,false);
+    this._box(.5,.4,.5,A,min.x+.32,fy+1.73,cz-.8);
+    this._box(.5,.3,.45,A,min.x+.32,fy+1.63,cz+.5);
+  }
+
+  _furnishBathroom(room) {
+    const {min,max}=room.bounds, [A,C]=[this.MAT.aged,this.MAT.ceramic];
+    const mirrorM=new THREE.MeshStandardMaterial({color:0x222222,roughness:.1,metalness:.9});
+    const fy=min.y, cx=(min.x+max.x)/2;
+    this._box(.6,.2,.45,C,cx,fy+.82,min.z+.22);
+    this._cyl(.08,.08,.82,6,A,cx,fy+.41,min.z+.22);
+    this._box(.5,.65,.03,mirrorM,cx,fy+1.4,min.z+.015);
+    this._box(.04,.04,.6,this.MAT.metal,min.x+.02,fy+1.2,(min.z+max.z)/2,0,false);
+  }
+
+  _addTextureOverlays(room) {
+    const {min,max}=room.bounds, W=max.x-min.x, D=max.z-min.z;
+    const tex=room.type==='utility'?this.TEX.brick:this.TEX.floor;
+    const fm=new THREE.MeshStandardMaterial({map:tex,roughness:1.0,transparent:true,opacity:.55,depthWrite:false});
+    const fp=new THREE.Mesh(new THREE.PlaneGeometry(W,D),fm);
+    fp.rotation.x=-Math.PI/2; fp.position.set((min.x+max.x)/2,min.y+.001,(min.z+max.z)/2);
+    fp.receiveShadow=true; this.scene.add(fp);
+  }
+
+  _addAtmospherics(room) {
+    const {min,max}=room.bounds;
+    if(room.type==='secret') {
+      for(let i=0;i<4;i++){
+        const pm=new THREE.Mesh(new THREE.PlaneGeometry(.35+Math.random()*.12,.26+Math.random()*.08),this.MAT.paper);
+        pm.rotation.x=-Math.PI/2; pm.rotation.z=(Math.random()-.5)*.55;
+        pm.position.set(min.x+1.5+Math.random()*(max.x-min.x-3),min.y+.01,min.z+1.5+Math.random()*(max.z-min.z-3));
+        this.scene.add(pm);
+      }
+    }
+    if(room.id==='attic'||room.id==='hidden_room') {
+      const cp=room.closetPos;
+      const cx2=cp.x<(min.x+max.x)/2?max.x:min.x;
+      const cz2=cp.z<(min.z+max.z)/2?max.z:min.z;
+      this._addCobweb(cx2,max.y-.05,cz2,cx2===max.x?-1:1,cz2===max.z?-1:1);
+    }
+    if(room.id==='attic'){
+      const dl=new THREE.PointLight(0xccbbaa,.08,5,2);
+      dl.position.set((min.x+max.x)/2,min.y+1.5,(min.z+max.z)/2);
+      this.scene.add(dl);
+    }
+  }
+
+  _addCobweb(cx,cy,cz,sx,sz) {
+    for(const [dx,dz] of [[sx*.6,0],[0,sz*.6],[sx*.38,sz*.38]]) {
+      const path=new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(cx,cy,cz),
+        new THREE.Vector3(cx+dx*.5,cy-.12,cz+dz*.5),
+        new THREE.Vector3(cx+dx,cy,cz+dz));
+      const tube=new THREE.Mesh(new THREE.TubeGeometry(path,8,.005,4,false),this.MAT.cobweb);
+      tube.castShadow=false; this.scene.add(tube);
+    }
+  }
+}
+
+// ── LightingManager ──────────────────────────────────────────────────────────
+class LightingManager {
+  constructor(scene) {
+    this.scene = scene;
+    this._lights = new Map();
+    this._powerEnabled = true;
+    scene.add(new THREE.AmbientLight(0x333322, 0.6));
+    const colors = { ground:0xffcc88, top:0xddaacc, basement:0x88aacc };
+    for (const room of ROOMS) {
+      if (room.id === 'van') continue; // van lit by HouseDetails strip lights
+      const { min,max } = room.bounds;
+      const light = new THREE.PointLight(colors[room.floor]??0xffcc88, 2.5, 16, 2);
+      light.position.set((min.x+max.x)/2, max.y-0.4, (min.z+max.z)/2);
+      light.castShadow = false;
+      light.userData.base = 2.5;
+      scene.add(light);
+      this._lights.set(room.id, light);
+      this._scheduleFlicker(room.id);
+    }
+  }
+  _scheduleFlicker(id) {
+    const light = this._lights.get(id);
+    if (!light) return;
+    setTimeout(() => {
+      if (!this._powerEnabled) return;
+      let n = 3 + Math.floor(Math.random()*3);
+      const fl = () => { if(n--<=0){this._scheduleFlicker(id);return;} light.intensity=light.intensity>0.1?0:light.userData.base; setTimeout(fl,60+Math.random()*80); };
+      fl();
+    }, 3000 + Math.random()*8000);
+  }
+  setPower(on) {
+    this._powerEnabled = on;
+    for (const [,l] of this._lights) l.intensity = on ? l.userData.base : 0;
+    if (on) for (const id of this._lights.keys()) this._scheduleFlicker(id);
+  }
+}
+
+// ── GhostRenderer ─────────────────────────────────────────────────────────────
+class GhostRenderer {
+  constructor(scene) {
+    this._group = new THREE.Group(); this._group.visible = false; scene.add(this._group);
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35,1.2,6,12), new THREE.MeshStandardMaterial({color:0xaaccff,emissive:0x334466,emissiveIntensity:0.6,transparent:true,opacity:0.55,side:THREE.DoubleSide,depthWrite:false}));
+    body.position.y=0.9; this._group.add(body); this._body=body;
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.28,8,8),new THREE.MeshBasicMaterial({color:0x88aaff,transparent:true,opacity:0.3}));
+    glow.position.y=1.8; this._group.add(glow);
+    this._light = new THREE.PointLight(0x6688ff,0.8,5); this._light.position.y=1.0; this._group.add(this._light);
+    this._target = new THREE.Vector3();
+  }
+  setVisible(on) { this._group.visible = on; }
+  isVisible() { return this._group.visible; }
+  getPosition() { return this._group.position; }
+  setTarget(pos) { this._target.set(pos.x,pos.y,pos.z); }
+  update(delta) {
+    if (!this._group.visible) return;
+    this._group.position.lerp(this._target, 0.15);
+    const t = Date.now()/1000;
+    this._body.position.y = 0.9 + Math.sin(t*1.3)*0.08;
+    this._light.intensity = 0.7 + Math.sin(t*2.1)*0.15;
+  }
+}
+
+// ── PlayerController ──────────────────────────────────────────────────────────
+class PlayerController {
+  constructor(camera, domElement) {
+    this.camera = camera;
+    this.controls = new PointerLockControls(camera, domElement);
+    this.isHiding = false; this.isDead = false;
+    this._keys = { w:false,a:false,s:false,d:false };
+    this._lastStairTime = 0;
+    this._onStairCb = null;
+    this._walls = this._buildWalls();
+    document.addEventListener('keydown', e => this._onKey(e,true));
+    document.addEventListener('keyup',   e => this._onKey(e,false));
+  }
+  _onKey(e,down) {
+    if(e.code==='KeyW') this._keys.w=down;
+    if(e.code==='KeyA') this._keys.a=down;
+    if(e.code==='KeyS') this._keys.s=down;
+    if(e.code==='KeyD') this._keys.d=down;
+  }
+  lock() { this.controls.lock(); }
+  onStairTransition(cb) { this._onStairCb = cb; }
+  update(delta, curRoomId) {
+    if (!this.controls.isLocked || this.isHiding || this.isDead) return;
+    const dir = new THREE.Vector3();
+    if(this._keys.w) dir.z-=1; if(this._keys.s) dir.z+=1;
+    if(this._keys.a) dir.x-=1; if(this._keys.d) dir.x+=1;
+    if(dir.lengthSq()===0) return;
+    dir.normalize();
+    const euler = new THREE.Euler().setFromQuaternion(this.camera.quaternion,'YXZ');
+    dir.applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0,euler.y,0)));
+    const oldPos = this.camera.position.clone();
+    const newPos = oldPos.clone().addScaledVector(dir, 4.5*delta);
+    this.camera.position.copy(this._resolveCollision(oldPos, newPos));
+    this._checkStairs(curRoomId);
+  }
+  _resolveCollision(oldPos, newPos) {
+    const p = newPos.clone();
+    const curRoom = findRoomAt(oldPos.x, oldPos.y, oldPos.z);
+    const check = new Set();
+    if (curRoom) { check.add(curRoom.id); for(const c of curRoom.connections) check.add(c); }
+    else for(const r of ROOMS) check.add(r.id);
+    for(const rid of check) {
+      for(const wall of (this._walls.get(rid)||[])) {
+        const exp = wall.clone().expandByScalar(PLAYER_RADIUS);
+        if(!exp.containsPoint(p)) continue;
+        const center=new THREE.Vector3(); exp.getCenter(center);
+        const size=new THREE.Vector3(); exp.getSize(size);
+        if(size.x/2-Math.abs(p.x-center.x) < size.z/2-Math.abs(p.z-center.z)) p.x=p.x>center.x?center.x+size.x/2:center.x-size.x/2;
+        else p.z=p.z>center.z?center.z+size.z/2:center.z-size.z/2;
+      }
+    }
+    const r = findRoomAt(p.x,p.y,p.z) || curRoom;
+    if(r) p.y=Math.max(r.bounds.min.y+PLAYER_HEIGHT, Math.min(r.bounds.max.y-0.1, p.y));
+    return p;
+  }
+  _checkStairs(curRoomId) {
+    const now=Date.now(); if(now-this._lastStairTime<2000) return;
+    const room=ROOM_MAP[curRoomId]; if(!room||!room.stairDestId) return;
+    const pos=this.camera.position, {min,max}=room.bounds;
+    const inX=pos.x>=min.x&&pos.x<=max.x;
+    const goingNorth=room.stairTriggerZ<(min.z+max.z)/2;
+    const triggered=inX&&(goingNorth?pos.z<=room.stairTriggerZ:pos.z>=room.stairTriggerZ);
+    if(triggered){ this._lastStairTime=now; if(this._onStairCb) this._onStairCb(room.stairDestId, room.stairDestPos); }
+  }
+  _buildWalls() {
+    const map=new Map();
+    for(const room of ROOMS){
+      const {min,max}=room.bounds, t=0.1, walls=[];
+      const hasConn=(face)=>{
+        for(const cid of room.connections){ const c=ROOM_MAP[cid]; if(!c) continue; const cb=c.bounds;
+          const xO=min.x<cb.max.x&&cb.min.x<max.x, zO=min.z<cb.max.z&&cb.min.z<max.z;
+          if(face==='north'&&Math.abs(cb.max.z-min.z)<0.2&&xO) return true;
+          if(face==='south'&&Math.abs(cb.min.z-max.z)<0.2&&xO) return true;
+          if(face==='west'&&Math.abs(cb.max.x-min.x)<0.2&&zO) return true;
+          if(face==='east'&&Math.abs(cb.min.x-max.x)<0.2&&zO) return true;
+        } return false;
+      };
+      if(!hasConn('north')) walls.push(new THREE.Box3(new THREE.Vector3(min.x,min.y,min.z-t),new THREE.Vector3(max.x,max.y,min.z+t)));
+      if(!hasConn('south')) walls.push(new THREE.Box3(new THREE.Vector3(min.x,min.y,max.z-t),new THREE.Vector3(max.x,max.y,max.z+t)));
+      if(!hasConn('west'))  walls.push(new THREE.Box3(new THREE.Vector3(min.x-t,min.y,min.z),new THREE.Vector3(min.x+t,max.y,max.z)));
+      if(!hasConn('east'))  walls.push(new THREE.Box3(new THREE.Vector3(max.x-t,min.y,min.z),new THREE.Vector3(max.x+t,max.y,max.z)));
+      map.set(room.id, walls);
+    }
+    return map;
+  }
+  enterCloset(room) { this.isHiding=true; const cp=room.closetPos; this.camera.position.set(cp.x,cp.y,cp.z); this.controls.unlock(); }
+  exitCloset() { this.isHiding=false; this.controls.lock(); }
+  becomeSpectator() { this.isDead=true; }
+}
+
+// ── HUD ───────────────────────────────────────────────────────────────────────
+class HUD {
+  constructor() {
+    this._bar=document.getElementById('sanity-bar');
+    this._pct=document.getElementById('sanity-pct');
+    this._readout=document.getElementById('tool-readout');
+    this._room=document.getElementById('room-name');
+    this._temp=document.getElementById('temp-display');
+    this._hunt=document.getElementById('hunt-warning');
+    this._spirit=document.getElementById('spirit-response');
+    this._popup=document.getElementById('evidence-popup');
+    this._prompt=document.getElementById('interact-prompt');
+    this._ptimer=null; this._stimer=null;
+    this._buildToolBar();
+  }
+  _buildToolBar() {
+    const bar=document.getElementById('tool-bar'); bar.innerHTML='';
+    for(let i=0;i<2;i++){
+      const s=document.createElement('div'); s.className='tool-slot'; s.id=`inv-slot-${i}`;
+      s.innerHTML=`<span class="slot-key">[${i+1}]</span><span class="slot-name slot-empty">EMPTY</span>`;
+      bar.appendChild(s);
+    }
+  }
+  setInventory(slots, activeIdx) {
+    const NAMES={emf:'EMF',thermometer:'THERM',goggles:'NVG',uv:'UV',notebook:'NOTEBOOK',sensor:'SENSOR',spiritbox:'SPIRIT'};
+    for(let i=0;i<2;i++){
+      const el=document.getElementById(`inv-slot-${i}`); if(!el) continue;
+      const toolId=slots[i];
+      el.className='tool-slot'+(toolId?' filled':'')+(i===activeIdx?' active':'');
+      el.querySelector('.slot-name').textContent=toolId?NAMES[toolId]||toolId:'EMPTY';
+      el.querySelector('.slot-name').className='slot-name'+(toolId?'':' slot-empty');
+    }
+  }
+  show() { document.getElementById('hud').style.display='block'; }
+  setActiveSlot(id) {}
+  setToolReadout(t) { this._readout.textContent=t||''; }
+  setSanity(p) {
+    p=Math.max(0,Math.min(100,p));
+    this._bar.style.width=p+'%';
+    this._pct.textContent=Math.floor(p)+'%';
+    const r=p>50?Math.round(200*(1-(p-50)/50)):200, g=p<50?Math.round(200*p/50):200;
+    this._bar.style.background=`rgb(${r},${g},0)`;
+    this._pct.style.color=p<25?'#f44':p<50?'#fa4':'#7f7';
+  }
+  setRoom(n) { this._room.textContent=n||''; }
+  setTemperature(t) {
+    if(t===null||t===undefined){this._temp.textContent='';document.getElementById('frost-vignette').style.opacity='0';return;}
+    this._temp.textContent=`${t>0?'+':''}${t.toFixed(1)}°C`;
+    this._temp.style.color=t<=0?'#aaccff':t<=5?'#88bbff':'#6cf';
+    document.getElementById('frost-vignette').style.opacity=t<=0?'1':t<=5?'0.5':'0';
+  }
+  showHuntWarning(on,text) { this._hunt.style.display=on?'block':'none'; if(text) this._hunt.textContent=text; }
+  showSpiritResponse(text) { clearTimeout(this._stimer); this._spirit.textContent=`👻 "${text}"`; this._spirit.style.display='block'; this._stimer=setTimeout(()=>this._spirit.style.display='none',4000); }
+  showEvidencePopup(text) { clearTimeout(this._ptimer); this._popup.textContent=text; this._popup.style.display='block'; this._ptimer=setTimeout(()=>this._popup.style.display='none',3000); }
+  setInteractPrompt(text) { this._prompt.textContent=text; this._prompt.style.display=text?'block':'none'; }
+}
+
+// ── Journal ───────────────────────────────────────────────────────────────────
+const EVIDENCE_LABELS = { emf5:'EMF Level 5', freezingTemps:'Freezing Temperatures', fingerprints:'Fingerprints', ghostOrbs:'Ghost Orbs', spiritBox:'Spirit Box', writing:'Ghost Writing' };
+class Journal {
+  constructor(onSubmit) {
+    this._onSubmit=onSubmit; this._states={}; this._visible=false; this._guess=null;
+    for(const k of Object.values(EVIDENCE)) this._states[k]=0;
+    this._el=document.getElementById('journal');
+    this._buildUI();
+    document.getElementById('journal-close').addEventListener('click',()=>this.hide());
+    document.getElementById('journal-submit').addEventListener('click',()=>this._submit());
+    document.addEventListener('keydown',e=>{ if(e.code==='KeyJ') this.toggle(); if(e.code==='Escape'&&this._visible) this.hide(); });
+  }
+  _buildUI() {
+    const el=document.getElementById('evidence-list'); el.innerHTML='<h3>EVIDENCE</h3>';
+    for(const [k,label] of Object.entries(EVIDENCE_LABELS)){
+      const row=document.createElement('div'); row.className='evidence-row'; row.dataset.ev=k;
+      row.innerHTML=`<div class="ev-state" id="ev-${k}">?</div><span class="ev-label">${label}</span>`;
+      row.addEventListener('click',()=>this._cycle(k)); el.appendChild(row);
+    }
+    const gl=document.getElementById('ghost-list'); gl.innerHTML='<h3>GHOST TYPE</h3>';
+    for(const g of GHOST_TYPES){
+      const d=document.createElement('div'); d.className='ghost-entry'; d.id=`g-${g.id}`;
+      d.textContent=g.name; d.title=g.evidence.map(e=>EVIDENCE_LABELS[e]||e).join(', ');
+      d.addEventListener('click',()=>this._select(g.id)); gl.appendChild(d);
+    }
+  }
+  _cycle(k) {
+    this._states[k]=(this._states[k]+1)%3;
+    const el=document.getElementById(`ev-${k}`), s=this._states[k];
+    el.textContent=['?','✓','✗'][s]; el.className='ev-state '+['','confirmed','ruledout'][s];
+    const row=document.querySelector(`[data-ev="${k}"]`); row.classList.toggle('ruledout',s===2);
+    this._update();
+  }
+  _update() {
+    const conf=Object.entries(this._states).filter(([,s])=>s===1).map(([k])=>k);
+    const ruled=Object.entries(this._states).filter(([,s])=>s===2).map(([k])=>k);
+    let cands=[];
+    for(const g of GHOST_TYPES){
+      const el=document.getElementById(`g-${g.id}`); if(!el) continue;
+      el.classList.remove('eliminated','candidate','sole-candidate');
+      const ok=conf.every(e=>g.evidence.includes(e))&&ruled.every(e=>!g.evidence.includes(e));
+      if(!ok) el.classList.add('eliminated'); else { cands.push(g.id); el.classList.add('candidate'); }
+    }
+    if(cands.length===1){ this._guess=cands[0]; document.getElementById(`g-${cands[0]}`).classList.add('sole-candidate'); } else this._guess=null;
+    document.getElementById('journal-submit').disabled=cands.length===0;
+  }
+  _select(id) { this._guess=id; document.querySelectorAll('.ghost-entry.candidate').forEach(e=>e.style.fontWeight=e.id===`g-${id}`?'bold':'normal'); }
+  _submit() {
+    if(!this._guess){
+      const cands=GHOST_TYPES.filter(g=>document.getElementById(`g-${g.id}`)?.classList.contains('candidate'));
+      if(cands.length>1){alert('Select a specific ghost first.');return;}
+      if(cands.length===1) this._guess=cands[0].id;
+    }
+    if(this._guess){ this._onSubmit(this._guess); this.hide(); }
+  }
+  toggle() { this._visible?this.hide():this.show(); }
+  show() { this._visible=true; this._el.style.display='block'; document.exitPointerLock?.(); }
+  hide() { this._visible=false; this._el.style.display='none'; }
+  isVisible() { return this._visible; }
+}
+
+// ── MapTablet ──────────────────────────────────────────────────────────────────
+class MapTablet {
+  constructor() {
+    this._el=document.getElementById('map-tablet');
+    this._canvas=document.getElementById('map-canvas');
+    this._ctx=this._canvas.getContext('2d');
+    this._sensors=new Map(); this._floor='ground'; this._visible=false;
+    document.getElementById('map-close').addEventListener('click',()=>this.hide());
+    document.addEventListener('keydown',e=>{ if(e.code==='KeyM') this.toggle(); if(e.code==='Escape'&&this._visible) this.hide(); });
+    this._canvas.addEventListener('click',e=>this._click(e));
+  }
+  addSensor(id,roomId,worldPos){ this._sensors.set(id,{roomId,worldPos,active:false}); if(this._visible) this._render(); }
+  setSensorActive(id,active){ const s=this._sensors.get(id); if(s) s.active=active; if(this._visible) this._render(); }
+  toggle(){ this._visible?this.hide():this.show(); }
+  show(){ this._visible=true; this._el.style.display='flex'; document.exitPointerLock?.(); this._render(); }
+  hide(){ this._visible=false; this._el.style.display='none'; }
+  _render(){
+    const ctx=this._ctx,W=this._canvas.width,H=this._canvas.height;
+    ctx.clearRect(0,0,W,H); ctx.fillStyle='#080808'; ctx.fillRect(0,0,W,H);
+    const rooms=ROOMS.filter(r=>r.floor===this._floor); if(!rooms.length) return;
+    let minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
+    for(const r of rooms){ minX=Math.min(minX,r.bounds.min.x); maxX=Math.max(maxX,r.bounds.max.x); minZ=Math.min(minZ,r.bounds.min.z); maxZ=Math.max(maxZ,r.bounds.max.z); }
+    const m=20, scale=Math.min((W-m*2)/(maxX-minX),(H-m*2)/(maxZ-minZ));
+    const ts=(wx,wz)=>({x:m+(wx-minX)*scale,y:m+(wz-minZ)*scale});
+    for(const r of rooms){
+      const tl=ts(r.bounds.min.x,r.bounds.min.z),br=ts(r.bounds.max.x,r.bounds.max.z);
+      ctx.strokeStyle='#2a3a2a'; ctx.lineWidth=1; ctx.strokeRect(tl.x,tl.y,br.x-tl.x,br.y-tl.y);
+      ctx.fillStyle='#334433'; ctx.font='9px Courier New'; ctx.textAlign='center'; ctx.fillText(r.name,(tl.x+br.x)/2,(tl.y+br.y)/2);
+    }
+    for(const [,s] of this._sensors){
+      const sr=ROOMS.find(r=>r.id===s.roomId); if(!sr||sr.floor!==this._floor) continue;
+      const p=ts(s.worldPos?.x??(sr.bounds.min.x+sr.bounds.max.x)/2,s.worldPos?.z??(sr.bounds.min.z+sr.bounds.max.z)/2);
+      ctx.beginPath(); ctx.arc(p.x,p.y,5,0,Math.PI*2); ctx.fillStyle=s.active?'#ff3333':'#fff'; ctx.fill();
+    }
+    const floors=['ground','top','basement'];
+    ctx.font='bold 11px Courier New'; ctx.textAlign='left';
+    floors.forEach((f,i)=>{ const ly=H-10-i*18; if(f===this._floor){ctx.fillStyle='rgba(100,200,100,0.15)';ctx.fillRect(4,ly-12,76,15);} ctx.fillStyle=f===this._floor?'#7fcc7f':'#446644'; ctx.fillText(f.toUpperCase(),8,ly); });
+  }
+  _click(e){
+    const rect=this._canvas.getBoundingClientRect(), y=(e.clientY-rect.top)*(this._canvas.height/rect.height), H=this._canvas.height;
+    ['ground','top','basement'].forEach((f,i)=>{ const ly=H-10-i*18; if(y>=ly-13&&y<=ly+3){ this._floor=f; this._render(); } });
+  }
+}
+
+// ── DeathScreen ───────────────────────────────────────────────────────────────
+function showEndScreen(data) {
+  const el=document.getElementById('end-screen');
+  document.getElementById('end-title').textContent=data.result==='success'?'IDENTIFIED!':'INVESTIGATION FAILED';
+  document.getElementById('end-title').className=data.result==='success'?'win':'lose';
+  document.getElementById('end-ghost').textContent=`Ghost: ${data.ghostType?.name??'?'}`;
+  document.getElementById('end-room').textContent=`Haunted Room: ${ROOM_MAP[data.ghostRoom]?.name??data.ghostRoom??'?'}`;
+  document.getElementById('end-detail').textContent=data.result==='success'?`Solved by ${data.solvedBy??'you'}`:data.reason??'Better luck next time.';
+  el.style.display='flex';
+}
+
+// ── Tools ──────────────────────────────────────────────────────────────────────
+class EMFReader {
+  constructor(hud){ this.hud=hud; this._level=1; this._active=false; }
+  onEquip(){ this._active=true; this.hud.setToolReadout(`EMF: ${this._level}`); }
+  onUnequip(){ this._active=false; this.hud.setToolReadout(''); }
+  onEMFUpdate(level){ this._level=level; if(this._active) this.hud.setToolReadout(`EMF: ${level}`); }
+}
+
+class Thermometer {
+  constructor(hud){ this.hud=hud; this._temp=null; this._active=false; }
+  onEquip(){ this._active=true; if(this._temp!==null) this.hud.setToolReadout(`${this._temp>0?'+':''}${this._temp.toFixed(1)}°C`); }
+  onUnequip(){ this._active=false; this.hud.setToolReadout(''); this.hud.setTemperature(null); }
+  onTemperature(t){ this._temp=t; this.hud.setTemperature(t); if(this._active) this.hud.setToolReadout(`${t>0?'+':''}${t.toFixed(1)}°C`); }
+}
+
+class NightVisionGoggles {
+  constructor(hud,sceneManager,scene){
+    this.hud=hud; this.sm=sceneManager; this._active=false; this._orbsVisible=false;
+    this._orbOrigin=new THREE.Vector3();
+    const count=30, pos=new Float32Array(count*3), geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    this._orbs=new THREE.Points(geo,new THREE.PointsMaterial({color:0xaaffcc,size:0.08,transparent:true,opacity:0.85,depthWrite:false}));
+    this._orbs.visible=false; this._orbCount=count; scene.add(this._orbs);
+    this._vel=Array.from({length:count},()=>({x:(Math.random()-0.5)*0.3,y:0.2+Math.random()*0.4,z:(Math.random()-0.5)*0.3}));
+  }
+  toggle(){ this._active=!this._active; this.sm.setNightVision(this._active); this.hud.setToolReadout(this._active?'NVG: ON':'NVG: OFF'); }
+  onEquip(){ this.hud.setToolReadout(this._active?'NVG: ON [3 toggle]':'NVG: OFF [3 toggle]'); }
+  onUnequip(){ this.hud.setToolReadout(''); }
+  onGhostOrbs(active){ this._orbsVisible=active&&this._active; this._orbs.visible=this._orbsVisible; }
+  setOrbOrigin(pos){
+    this._orbOrigin.copy(pos);
+    const a=this._orbs.geometry.attributes.position;
+    for(let i=0;i<this._orbCount;i++){ a.setX(i,pos.x+(Math.random()-0.5)*4); a.setY(i,pos.y+Math.random()*0.3); a.setZ(i,pos.z+(Math.random()-0.5)*4); }
+    a.needsUpdate=true;
+  }
+  update(delta){
+    if(!this._orbsVisible) return;
+    const a=this._orbs.geometry.attributes.position;
+    for(let i=0;i<this._orbCount;i++){
+      a.setX(i,a.getX(i)+this._vel[i].x*delta); a.setY(i,a.getY(i)+this._vel[i].y*delta); a.setZ(i,a.getZ(i)+this._vel[i].z*delta);
+      if(a.getY(i)>this._orbOrigin.y+2.5){ a.setX(i,this._orbOrigin.x+(Math.random()-0.5)*4); a.setY(i,this._orbOrigin.y+Math.random()*0.5); a.setZ(i,this._orbOrigin.z+(Math.random()-0.5)*4); }
+    }
+    a.needsUpdate=true;
+  }
+}
+
+class UVFlashlight {
+  constructor(camera,scene,hud){
+    this.camera=camera; this.hud=hud; this._active=false; this._fps=[];
+    this._light=new THREE.SpotLight(0x9900ff,0,8,Math.PI/10,0.3);
+    scene.add(this._light); scene.add(this._light.target);
+    this._scene=scene;
+  }
+  onEquip(){ this._active=true; this.hud.setToolReadout('UV: ON'); }
+  onUnequip(){ this._active=false; this._light.intensity=0; this.hud.setToolReadout(''); }
+  onFingerprintLocations(locs){ for(const loc of locs) this._add(loc); }
+  _add(loc){
+    const mat=new THREE.MeshBasicMaterial({color:0x8800ff,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false});
+    const mesh=new THREE.Mesh(new THREE.PlaneGeometry(0.3,0.2),mat);
+    const {x,y,z}=loc.worldPos; mesh.position.set(x,y,z); mesh.lookAt(x,y+2,z+1);
+    this._scene.add(mesh); this._fps.push({mesh,pos:new THREE.Vector3(x,y,z),revealed:false});
+  }
+  update(delta){
+    if(!this._active) return;
+    this._light.position.copy(this.camera.position); this._light.intensity=2.5;
+    const dir=new THREE.Vector3(0,0,-1).applyQuaternion(this.camera.quaternion);
+    this._light.target.position.copy(this.camera.position.clone().addScaledVector(dir,4));
+    this._light.target.updateMatrixWorld();
+    const cos=Math.cos(Math.PI/10+0.2);
+    for(const fp of this._fps){
+      const to=fp.pos.clone().sub(this.camera.position), dist=to.length();
+      if(dist>4){fp.mesh.material.opacity=Math.max(0,fp.mesh.material.opacity-delta*0.5);continue;}
+      to.normalize();
+      if(to.dot(dir)>cos){ fp.mesh.material.opacity=Math.min(0.9,fp.mesh.material.opacity+delta*1.5); if(!fp.revealed&&fp.mesh.material.opacity>0.3) fp.revealed=true; }
+      else fp.mesh.material.opacity=Math.max(0,fp.mesh.material.opacity-delta*0.8);
+    }
+  }
+}
+
+class Notebook {
+  constructor(scene,hud,game){
+    this.scene=scene; this.hud=hud; this.game=game;
+    this._placed=false; this._mesh=null; this._notebookId=null; this._msg=null;
+    const m=document.createElement('div');
+    m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;z-index:60;pointer-events:all;flex-direction:column;gap:16px;font-family:Courier New,monospace;';
+    m.innerHTML='<div style="color:#c33;font-size:18px;letter-spacing:2px">GHOST WRITING</div><div id="nb-msg" style="color:#eee;font-size:24px;border:1px solid #444;padding:20px 40px;text-align:center;"></div><button id="nb-close" style="background:#333;color:#aaa;border:none;padding:8px 20px;cursor:pointer;font-family:Courier New,monospace;">Close</button>';
+    document.body.appendChild(m); this._modal=m;
+    m.querySelector('#nb-close').addEventListener('click',()=>m.style.display='none');
+  }
+  onEquip(){ this.hud.setToolReadout(this._placed?'NOTEBOOK: placed':'NOTEBOOK: [E] place'); }
+  onUnequip(){ this.hud.setToolReadout(''); this.hud.setInteractPrompt(''); }
+  onInteract(camera){
+    if(!this._placed){ this._place(camera); }
+    else if(this._msg){ this._modal.querySelector('#nb-msg').textContent=`"${this._msg}"`; this._modal.style.display='flex'; document.exitPointerLock?.(); }
+  }
+  _place(camera){
+    const dir=new THREE.Vector3(0,-0.5,-1).applyQuaternion(camera.quaternion).normalize();
+    const pos=camera.position.clone().addScaledVector(dir,1.2); pos.y=Math.max(pos.y-0.5,-10);
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.02,0.22),new THREE.MeshStandardMaterial({color:0x8b6c42,roughness:0.9}));
+    mesh.position.copy(pos); this.scene.add(mesh); this._mesh=mesh; this._placed=true;
+    this.hud.setToolReadout('NOTEBOOK: placed');
+    this.game.placeNotebook({x:pos.x,y:pos.y,z:pos.z});
+  }
+  onNotebookPlaced(data){ this._notebookId=data.notebookId; }
+  onWriting(data){
+    if(data.notebookId===this._notebookId){ this._msg=data.message; this.hud.setInteractPrompt('[E] Read notebook'); if(this._mesh) this._mesh.material.color.set(0xffaa44); }
+  }
+  update(){ if(this._placed&&this._msg) this.hud.setInteractPrompt('[E] Read notebook'); }
+}
+
+class MotionSensor {
+  constructor(scene,hud,game){
+    this.scene=scene; this.hud=hud; this.game=game;
+    this._placed=false; this._meshes=new Map(); this._tablet=null;
+  }
+  setMapTablet(t){ this._tablet=t; }
+  onEquip(){ this.hud.setToolReadout(this._placed?'SENSOR: placed':'SENSOR: [E] place'); }
+  onUnequip(){ this.hud.setToolReadout(''); }
+  onInteract(camera){
+    if(this._placed) return;
+    const dir=new THREE.Vector3(0,-0.5,-1).applyQuaternion(camera.quaternion).normalize();
+    const pos=camera.position.clone().addScaledVector(dir,1.5); pos.y-=0.4;
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(0.15,0.25,0.08),new THREE.MeshStandardMaterial({color:0x333333,roughness:0.6}));
+    mesh.position.copy(pos); this.scene.add(mesh);
+    const lb=new THREE.Mesh(new THREE.SphereGeometry(0.04,6,6),new THREE.MeshBasicMaterial({color:0xffffff}));
+    lb.position.set(pos.x,pos.y+0.14,pos.z); this.scene.add(lb);
+    const pl=new THREE.PointLight(0xffffff,0.3,2); pl.position.copy(lb.position); this.scene.add(pl);
+    const tempId=`local_${Date.now()}`; this._meshes.set(tempId,{mesh,lb,pl,mat:lb.material});
+    this._placed=true; this.hud.setToolReadout('SENSOR: placed');
+    this.game.placeMotionSensor({x:pos.x,y:pos.y,z:pos.z});
+  }
+  onSensorPlaced(data){ const e=[...this._meshes.values()].find(e=>!e.serverId); if(e) e.serverId=data.sensorId; this._tablet?.addSensor(data.sensorId,data.roomId,data.worldPos); }
+  onMotionSensorEvent(data){
+    this._tablet?.setSensorActive(data.sensorId,data.active);
+    for(const [,e] of this._meshes){ if(e.serverId===data.sensorId){ const c=data.active?0xff2222:0xffffff; e.lb.material.color.set(c); e.pl.color.set(c); e.pl.intensity=data.active?0.6:0.3; } }
+  }
+}
+
+class SpiritBox {
+  constructor(hud,game){
+    this.hud=hud; this.game=game; this._active=false;
+    const qs=[{id:'q1',text:'Are you here?'},{id:'q2',text:'What do you want?'},{id:'q3',text:'How did you die?'},{id:'q4',text:'Are you angry?'},{id:'q5',text:'Did you die here?'}];
+    const m=document.createElement('div');
+    m.style.cssText='position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);border:1px solid #333;padding:16px 24px;display:none;z-index:55;pointer-events:all;font-family:Courier New,monospace;min-width:280px;';
+    m.innerHTML='<div style="color:#888;font-size:11px;margin-bottom:10px">SPIRIT BOX — ASK A QUESTION:</div><div id="sb-qs"></div>';
+    const qd=m.querySelector('#sb-qs');
+    for(const q of qs){ const b=document.createElement('button'); b.textContent=q.text; b.style.cssText='display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid #222;color:#bbb;padding:7px 0;cursor:pointer;font-family:Courier New,monospace;font-size:13px;'; b.addEventListener('click',()=>{ m.style.display='none'; this.game.askSpiritBox(q.id); }); qd.appendChild(b); }
+    document.body.appendChild(m); this._modal=m;
+    document.addEventListener('keydown',e=>{ if(e.code==='Escape') m.style.display='none'; });
+  }
+  onEquip(){ this._active=true; this.hud.setToolReadout('SPIRIT BOX: [E] ask'); }
+  onUnequip(){ this._active=false; this._modal.style.display='none'; this.hud.setToolReadout(''); }
+  onInteract(){ if(!this._active) return; this._modal.style.display=this._modal.style.display==='none'?'block':'none'; if(this._modal.style.display==='block') document.exitPointerLock?.(); }
+  onResponse(data){ this.hud.showSpiritResponse(data.response); }
+}
+
+// ── HuntSoundManager ─────────────────────────────────────────────────────────
+class HuntSoundManager {
+  constructor(){ this._ctx=null; this._timer=null; this._active=false; }
+  _ctx(){
+    if(!this._ctx) this._ctx=new(window.AudioContext||window.webkitAudioContext)();
+    if(this._ctx.state==='suspended') this._ctx.resume();
+    return this._ctx;
+  }
+  _pulse(ctx,freq,vol,startAt,dur){
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sine'; o.frequency.value=freq;
+    o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0,startAt);
+    g.gain.linearRampToValueAtTime(vol,startAt+0.015);
+    g.gain.exponentialRampToValueAtTime(0.001,startAt+dur);
+    o.start(startAt); o.stop(startAt+dur+0.05);
+  }
+  _beat(){
+    if(!this._active) return;
+    const ctx=this._ctx(), now=ctx.currentTime;
+    this._pulse(ctx,58,0.55,now,0.13);        // lub
+    this._pulse(ctx,48,0.38,now+0.2,0.15);   // dub
+    this._timer=setTimeout(()=>this._beat(),850);
+  }
+  start(){ if(this._active) return; this._active=true; this._beat(); }
+  stop(){ this._active=false; clearTimeout(this._timer); this._timer=null; }
+}
+
+// ── VanToolShelf ──────────────────────────────────────────────────────────────
+const TOOL_DEFS = [
+  {id:'emf',        label:'EMF Reader',   x:-3.8, z:6.5,  color:0x00ff88},
+  {id:'thermometer',label:'Thermometer',  x:-3.8, z:8.0,  color:0x00aaff},
+  {id:'goggles',    label:'Night Goggles',x:-3.8, z:9.5,  color:0x88ff00},
+  {id:'uv',         label:'UV Light',     x:-3.8, z:11.0, color:0x8800ff},
+  {id:'notebook',   label:'Notebook',     x: 3.8, z:6.5,  color:0xffaa00},
+  {id:'sensor',     label:'Motion Sensor',x: 3.8, z:8.0,  color:0xff4400},
+  {id:'spiritbox',  label:'Spirit Box',   x: 3.8, z:9.5,  color:0xff00aa},
+];
+
+class VanToolShelf {
+  constructor(scene) {
+    this._scene=scene;
+    this._pickups=[];
+    this._build();
+  }
+  _build() {
+    const shelfMat=new THREE.MeshStandardMaterial({color:0x1a0e05,roughness:0.9});
+    for(const def of TOOL_DEFS){
+      const shelf=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.05,0.45),shelfMat);
+      shelf.position.set(def.x,0.97,def.z); this._scene.add(shelf);
+      const mat=new THREE.MeshStandardMaterial({color:def.color,emissive:def.color,emissiveIntensity:0.4,roughness:0.5});
+      const mesh=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.28,0.16),mat);
+      mesh.position.set(def.x,1.18,def.z); this._scene.add(mesh);
+      const light=new THREE.PointLight(def.color,0.5,1.8);
+      light.position.set(def.x,1.35,def.z); this._scene.add(light);
+      this._pickups.push({id:def.id,label:def.label,mesh,light,available:true,pos:new THREE.Vector3(def.x,1.18,def.z)});
+    }
+  }
+  getNearby(playerPos,range=1.6){ return this._pickups.find(p=>p.available&&playerPos.distanceTo(p.pos)<range)||null; }
+  take(p){ p.available=false; p.mesh.visible=false; p.light.intensity=0; }
+  return(toolId){ const p=this._pickups.find(p=>p.id===toolId); if(p){p.available=true;p.mesh.visible=true;p.light.intensity=0.5;} }
+}
+
+// ── ToolManager ───────────────────────────────────────────────────────────────
+class ToolManager {
+  constructor(camera,scene,hud,sceneManager,game){
+    this.camera=camera; this.hud=hud; this.game=game;
+    this._active=null; this._inventory=[null,null]; this._activeSlot=0;
+    this._curRoomId='van'; this._shelf=null;
+    this.tools={
+      emf:new EMFReader(hud),
+      thermometer:new Thermometer(hud),
+      goggles:new NightVisionGoggles(hud,sceneManager,scene),
+      uv:new UVFlashlight(camera,scene,hud),
+      notebook:new Notebook(scene,hud,game),
+      sensor:new MotionSensor(scene,hud,game),
+      spiritbox:new SpiritBox(hud,game),
+    };
+    document.addEventListener('keydown',e=>{
+      if(e.code==='Digit1') this._selectSlot(0);
+      else if(e.code==='Digit2') this._selectSlot(1);
+      else if(e.code==='KeyG') this._drop();
+      else if(e.code==='KeyE') this._interact();
+    });
+  }
+  setShelf(shelf){ this._shelf=shelf; }
+  _selectSlot(idx){
+    const id=this._inventory[idx]; if(!id) return;
+    if(this._active===id&&id==='goggles'){this.tools.goggles.toggle();return;}
+    if(this._active) this.tools[this._active]?.onUnequip?.();
+    this._activeSlot=idx; this._active=id;
+    this.tools[id]?.onEquip?.(); this.game.sendToolHeld(id);
+    this.hud.setInventory(this._inventory,this._activeSlot);
+  }
+  _interact(){
+    if(this._curRoomId==='van'&&this._shelf){
+      const nearby=this._shelf.getNearby(this.camera.position);
+      if(nearby){ this._pickup(nearby); return; }
+    }
+    this.tools[this._active]?.onInteract?.(this.camera);
+  }
+  _pickup(pickup){
+    const empty=this._inventory.findIndex(s=>s===null);
+    if(empty!==-1){
+      this._inventory[empty]=pickup.id; this._shelf.take(pickup);
+      if(this._active===null) this._selectSlot(empty);
+    } else {
+      const dropped=this._inventory[this._activeSlot];
+      this.tools[dropped]?.onUnequip?.();
+      this._inventory[this._activeSlot]=pickup.id;
+      this._shelf.take(pickup); this._shelf.return(dropped);
+      this._active=pickup.id; this.tools[pickup.id]?.onEquip?.();
+      this.game.sendToolHeld(pickup.id);
+    }
+    this.hud.showEvidencePopup(`Picked up: ${pickup.label}`);
+    this.hud.setInventory(this._inventory,this._activeSlot);
+  }
+  _drop(){
+    const id=this._inventory[this._activeSlot]; if(!id) return;
+    this.tools[id]?.onUnequip?.();
+    this._inventory[this._activeSlot]=null; this._active=null;
+    this.game.sendToolHeld(null);
+    if(this._curRoomId==='van'&&this._shelf){ this._shelf.return(id); this.hud.showEvidencePopup('Tool returned to shelf.'); }
+    else this.hud.showEvidencePopup('Tool dropped.');
+    this.hud.setInventory(this._inventory,this._activeSlot);
+  }
+  update(delta,roomId){
+    this._curRoomId=roomId;
+    this.tools[this._active]?.update?.(delta,roomId);
+    if(roomId==='van'&&this._shelf){
+      const nearby=this._shelf.getNearby(this.camera.position);
+      if(nearby) this.hud.setInteractPrompt(`[E] Pick up ${nearby.label}  [G] Drop held tool`);
+    }
+  }
+  onEMFUpdate(l){ this.tools.emf.onEMFUpdate(l); }
+  onTemperature(t){ this.tools.thermometer.onTemperature(t); }
+  onGhostOrbs(a){ this.tools.goggles.onGhostOrbs(a); }
+  onFingerprintLocations(l){ this.tools.uv.onFingerprintLocations(l); }
+  onWriting(d){ this.tools.notebook.onWriting(d); }
+  onMotionSensor(d){ this.tools.sensor.onMotionSensorEvent(d); }
+  onSpiritBoxResponse(d){ this.tools.spiritbox.onResponse(d); }
+  onSensorPlaced(d){ this.tools.sensor.onSensorPlaced(d); }
+  onNotebookPlaced(d){ this.tools.notebook.onNotebookPlaced(d); }
+}
+
+// ── LAN Multiplayer Client ────────────────────────────────────────────────────
+class LANClient {
+  constructor(game) {
+    this.game = game;
+    this.ws = null;
+    this.playerId = null;
+    this.otherPlayers = new Map();
+    this.connected = false;
+    this._tryConnect();
+  }
+  _tryConnect() {
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.hostname;
+    const port = window.location.port || (window.location.protocol === 'https:' ? 443 : 80);
+    const wsUrl = `${proto}//${host}:3000`;
+    try {
+      this.ws = new WebSocket(wsUrl);
+      this.ws.onopen = () => this._onOpen();
+      this.ws.onmessage = (e) => this._onMessage(JSON.parse(e.data));
+      this.ws.onclose = () => { this.connected = false; console.log('LAN disconnected'); };
+      this.ws.onerror = () => { this.connected = false; };
+    } catch (e) {
+      console.log('LAN not available, playing offline');
+    }
+  }
+  _onOpen() {
+    this.connected = true;
+    console.log('LAN connected');
+    this.send({ type: 'join', name: document.getElementById('name-input').value || 'Player' });
+  }
+  _onMessage(msg) {
+    if (msg.type === 'joined') {
+      this.playerId = msg.playerId;
+      for (const p of msg.players || []) {
+        if (p.id !== this.playerId) this.otherPlayers.set(p.id, p);
+      }
+    } else if (msg.type === 'playerJoined') {
+      if (msg.playerId !== this.playerId) this.otherPlayers.set(msg.playerId, msg.player);
+    } else if (msg.type === 'playerLeft') {
+      this.otherPlayers.delete(msg.playerId);
+    }
+  }
+  send(msg) {
+    if (this.connected && this.ws) this.ws.send(JSON.stringify(msg));
+  }
+  update(pos, rot, roomId, state) {
+    this.send({ type: 'move', position: pos, rotation: rot, currentRoomId: roomId });
+    this.send({ type: 'state', state });
+  }
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+const scene   = new SceneManager();
+const rooms   = new RoomManager(scene.scene);
+let houseDetails;
+try { houseDetails = new HouseDetails(scene.scene); }
+catch(e) { console.error('[HouseDetails crash]', e); }
+const lights  = new LightingManager(scene.scene);
+const ghost   = new GhostRenderer(scene.scene);
+const player  = new PlayerController(scene.camera, scene.renderer.domElement);
+const hud     = new HUD();
+const tablet  = new MapTablet();
+const game    = new LocalGame();
+const clock   = new THREE.Clock();
+const vanShelf = new VanToolShelf(scene.scene);
+const huntSound = new HuntSoundManager();
+scene.camera.position.set(0, PLAYER_HEIGHT, 9);
+
+const journal = new Journal(ghostId => game.submitGuess(ghostId));
+const toolMgr = new ToolManager(scene.camera, scene.scene, hud, scene, game);
+toolMgr.tools.sensor.setMapTablet(tablet);
+toolMgr.setShelf(vanShelf);
+const lanClient = new LANClient(game);
+
+let gameStarted = false, curRoomId = 'van', moveThrottle = 0;
+let _prevRoomId = 'van';
+
+// Lobby
+document.getElementById('start-btn').addEventListener('click', () => {
+  const name = document.getElementById('name-input').value.trim() || 'Detective';
+  game.join(name);
+  document.getElementById('lobby').style.display = 'none';
+  game.startGame();
+});
+document.getElementById('name-input').addEventListener('keydown', e => {
+  if (e.code === 'Enter') document.getElementById('start-btn').click();
+});
+
+// Game events
+game.on('game:start', () => {
+  gameStarted = true;
+  hud.show();
+  const displayId = lanClient.connected && lanClient.playerId ? `SESSION ${lanClient.playerId.substring(0, 8)}` : 'WHITTAKER HOUSE';
+  document.getElementById('session-id').textContent = displayId;
+  const cs = document.getElementById('click-start');
+  cs.style.display = 'flex';
+  cs.addEventListener('click', () => { cs.style.display = 'none'; player.lock(); }, { once: true });
+});
+
+game.on('state:sanity',   d => hud.setSanity(d.personal));
+game.on('state:ghost',    d => { ghost.setTarget(d.position); ghost.setVisible(d.isVisible); });
+game.on('evidence:emf',   d => toolMgr.onEMFUpdate(d.level));
+game.on('evidence:temperature', d => toolMgr.onTemperature(d.temp));
+game.on('evidence:ghostOrbs',   d => { toolMgr.onGhostOrbs(d.active); toolMgr.tools.goggles.setOrbOrigin(scene.camera.position); });
+game.on('evidence:fingerprintLocations', l => toolMgr.onFingerprintLocations(l));
+game.on('evidence:writing',       d => toolMgr.onWriting(d));
+game.on('evidence:motionSensor',  d => toolMgr.onMotionSensor(d));
+game.on('evidence:spiritBoxResponse', d => toolMgr.onSpiritBoxResponse(d));
+game.on('evidence:sensorPlaced',  d => toolMgr.onSensorPlaced(d));
+game.on('evidence:notebookPlaced',d => toolMgr.onNotebookPlaced(d));
+
+game.on('event:huntWarning', d => {
+  hud.showHuntWarning(true, `⚠ HUNT IN ${d.secsRemaining}s ⚠`);
+  setTimeout(() => hud.showHuntWarning(false), (d.secsRemaining - 0.5) * 1000);
+});
+game.on('event:huntStart', () => { hud.showHuntWarning(true, '⚠ HUNT IN PROGRESS ⚠'); journal.hide(); tablet.hide(); huntSound.start(); });
+game.on('event:huntEnd',   () => { hud.showHuntWarning(false); ghost.setVisible(false); game.sendHiding(false); player.exitCloset(); huntSound.stop(); });
+game.on('event:playerDied', d => { document.getElementById('death-screen').style.display='flex'; player.isDead=true; });
+game.on('event:powerToggle', d => { lights.setPower(d.enabled); hud.showEvidencePopup(d.enabled?'Power restored.':'Power cut!'); });
+game.on('game:ended', d => { showEndScreen(d); journal.hide(); tablet.hide(); huntSound.stop(); });
+game.on('game:incorrect', () => hud.showEvidencePopup('Incorrect — keep investigating.'));
+
+document.getElementById('spectate-btn').addEventListener('click', () => {
+  document.getElementById('death-screen').style.display = 'none';
+  player.becomeSpectator();
+});
+
+// E key: fuse box, closet hiding
+document.addEventListener('keydown', e => {
+  if (e.code !== 'KeyE' || journal.isVisible()) return;
+  const pos = scene.camera.position;
+  // Fuse box
+  if (curRoomId === 'boiler_room') {
+    const fb = ROOM_MAP['boiler_room'].fuseBoxPos;
+    if (fb && Math.sqrt((pos.x-fb.x)**2+(pos.z-fb.z)**2) < 2.5) { game.togglePower(); return; }
+  }
+  // Closet
+  const room = ROOM_MAP[curRoomId];
+  if (!room) return;
+  if (player.isHiding) { player.exitCloset(); game.sendHiding(false); return; }
+  const cp = room.closetPos;
+  if (Math.sqrt((pos.x-cp.x)**2+(pos.z-cp.z)**2) < 1.2) { player.enterCloset(room); game.sendHiding(true); hud.setInteractPrompt('[E] Exit closet'); }
+});
+
+// Game loop
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  if (gameStarted) {
+    player.onStairTransition((destId, destPos) => {
+      scene.camera.position.set(destPos.x, destPos.y, destPos.z);
+      curRoomId = destId;
+    });
+    player.update(delta, curRoomId);
+    _prevRoomId = curRoomId;
+    curRoomId = rooms.updateCurrentRoom(scene.camera.position.x, scene.camera.position.y, scene.camera.position.z);
+
+    // Lock van door during hunts — block crossing in both directions
+    if(game.vanDoorLocked){
+      const crossedIn  = _prevRoomId==='van'   && curRoomId==='foyer';
+      const crossedOut = _prevRoomId!=='van'   && curRoomId==='van';
+      if(crossedIn){ scene.camera.position.z=4.6; curRoomId='van'; hud.showEvidencePopup('EXIT LOCKED — hunt in progress.'); }
+      if(crossedOut){ scene.camera.position.z=3.4; curRoomId=_prevRoomId; hud.showEvidencePopup('EXIT LOCKED — hunt in progress.'); }
+    }
+
+    moveThrottle += delta;
+    if (moveThrottle >= 0.05) {
+      moveThrottle = 0;
+      if (!player.isDead) {
+        const euler = new THREE.Euler().setFromQuaternion(scene.camera.quaternion, 'YXZ');
+        game.sendMove(scene.camera.position, euler.y, curRoomId);
+        lanClient.update(scene.camera.position, { y: euler.y }, curRoomId, { sanity: game._sanity });
+      }
+    }
+
+    const rd = rooms.getRoomData(curRoomId);
+    if (rd) hud.setRoom(rd.name);
+
+    // Interact prompts
+    const pos = scene.camera.position;
+    if (curRoomId === 'boiler_room') {
+      const fb = ROOM_MAP['boiler_room'].fuseBoxPos;
+      if (fb && Math.sqrt((pos.x-fb.x)**2+(pos.z-fb.z)**2) < 2.5) hud.setInteractPrompt('[E] Toggle power');
+      else if (!player.isHiding) hud.setInteractPrompt('');
+    } else if (!player.isHiding) {
+      const room = ROOM_MAP[curRoomId];
+      if (room) { const cp=room.closetPos; Math.sqrt((pos.x-cp.x)**2+(pos.z-cp.z)**2)<1.2 ? hud.setInteractPrompt('[E] Hide in closet') : hud.setInteractPrompt(''); }
+    }
+
+    toolMgr.update(delta, curRoomId);
+    ghost.update(delta);
+    if (ghost.isVisible()) {
+      const gp = ghost.getPosition(), cp = scene.camera.position;
+      const dx = gp.x-cp.x, dy = gp.y-cp.y, dz = gp.z-cp.z;
+      const dist = Math.sqrt(dx*dx+dy*dy+dz*dz);
+      const toGhost = new THREE.Vector3(dx,dy,dz).normalize();
+      const camDir = new THREE.Vector3(0,0,-1).applyQuaternion(scene.camera.quaternion);
+      game.sendLookingAtGhost(dist < 12 && toGhost.dot(camDir) > 0.7);
+    } else {
+      game.sendLookingAtGhost(false);
+    }
+  }
+  scene.render();
+}
+animate();
+</script>
+</body>
+</html>
