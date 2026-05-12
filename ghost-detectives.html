@@ -319,6 +319,12 @@ class LocalGame {
     const id = setInterval(() => {
       if (this._phase === PHASE.ENDED) return;
       if (this._player.isDead || this._player.isHiding) return;
+      const curRoom = ROOM_MAP[this._player.currentRoomId];
+      if (curRoom?.isSafeZone) {
+        this._player.sanity = Math.min(100, this._player.sanity + 0.5);
+        this._emit('state:sanity', { personal: this._player.sanity });
+        return;
+      }
       let drain = 0.3;
       if (this._ghostType?.id === 'yurei') drain += 0.2;
       if (this._ghostType?.specialAbility === 'sanityDrainOnLook' && this._phase === PHASE.HUNT && this._playerLookingAtGhost) drain += 1.5;
@@ -426,7 +432,9 @@ class LocalGame {
     this._ghost.isVisible = true;
     this._emit('event:huntStart', {});
     this._huntInterval = setInterval(() => this._huntTick(), 100);
-    const t = setTimeout(() => { this._endHunt(); clearInterval(this._huntInterval); }, 20000);
+    const curRoom = ROOM_MAP[this._player.currentRoomId];
+    const huntDuration = curRoom?.isSafeZone ? 10000 : 20000;
+    const t = setTimeout(() => { this._endHunt(); clearInterval(this._huntInterval); }, huntDuration);
     this._timers.push(t);
   }
 
@@ -731,6 +739,9 @@ class HouseDetails {
       if(room.type==='storage'||room.type==='secret') this._addAtmospherics(room);
     }
     this._addStairs();
+    this._addLightFixtures();
+    this._buildVanExterior();
+    this._buildStreetScene();
   }
 
   _furnishVan(room) {
@@ -837,6 +848,127 @@ class HouseDetails {
     // Fill light at waist height to kill floor shadows
     const lf=new THREE.PointLight(0xfff5e0,6.0,18,2);
     lf.position.set(cx,1.2,9.0); this.scene.add(lf);
+  }
+
+  _addLightFixtures() {
+    const M=(c,r,ex={})=>new THREE.MeshStandardMaterial({color:c,roughness:r,...ex});
+    const roseM=this.MAT.trim;
+    const cordM=M(0x1c1a18,0.5,{metalness:0.3});
+    const bulbM=M(0xfff9e0,0.1,{emissive:new THREE.Color(0xffcc44),emissiveIntensity:2.5});
+    const shadeM=M(0x0d0a06,0.85);
+    for(const room of ROOMS){
+      if(room.id==='van') continue;
+      if(room.type==='stairwell') continue;
+      const{min,max}=room.bounds;
+      const cx=(min.x+max.x)/2,cz=(min.z+max.z)/2,cy=max.y;
+      this._cyl(0.1,0.1,0.04,8,roseM,cx,cy-0.02,cz);
+      this._cyl(0.008,0.008,0.28,4,cordM,cx,cy-0.17,cz);
+      const bulb=new THREE.Mesh(new THREE.SphereGeometry(0.07,6,5),bulbM);
+      bulb.position.set(cx,cy-0.34,cz); this.scene.add(bulb);
+      const shade=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.08,0.22,8,1,true),shadeM);
+      shade.position.set(cx,cy-0.42,cz); this.scene.add(shade);
+    }
+  }
+
+  _buildVanExterior() {
+    const M=(c,r,ex={})=>new THREE.MeshStandardMaterial({color:c,roughness:r,...ex});
+    const bodyM=M(0x23232b,0.5,{metalness:0.4});
+    const cabM =M(0x1b1b23,0.5,{metalness:0.4});
+    const glassM=M(0x081412,0.2,{metalness:0.2,transparent:true,opacity:0.55});
+    const wheelM=M(0x0a0a0a,0.95);
+    const rimM  =M(0x282828,0.4,{metalness:0.7});
+    const addFace=(w,h,mat,px,py,pz,ry=0)=>{
+      const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),mat);
+      m.position.set(px,py,pz); m.rotation.y=ry; this.scene.add(m);
+    };
+    // Van room: x:-5 to 5, y:0 to 3, z:4 to 14
+    addFace(10,3.4,bodyM,-5.5,1.7,9,-Math.PI/2);    // left side
+    addFace(10,3.4,bodyM, 5.5,1.7,9, Math.PI/2);    // right side
+    addFace(11,3.4,bodyM, 0,1.7,3.8,Math.PI);       // rear (north face, shows tail lights)
+    this._box(11.2,0.3,10.4,bodyM,0,3.28,9,0,false); // roof
+    // Cab section (z:14 to 17.6) — driver area, slightly taller
+    this._box(11.2,3.9,3.6,cabM,0,1.95,15.8,0,false);
+    addFace(10.5,2.5,glassM,0,2.2,17.7,Math.PI);         // windshield
+    addFace(1.6,1.3,glassM,-5.6,2.2,15.8,-Math.PI/2);   // left window
+    addFace(1.6,1.3,glassM, 5.6,2.2,15.8, Math.PI/2);   // right window
+    // Wheels
+    for(const[wx,wz]of[[-5.4,6.5],[-5.4,11.5],[5.4,6.5],[5.4,11.5]]){
+      const wh=new THREE.Mesh(new THREE.CylinderGeometry(0.65,0.65,0.4,12),wheelM);
+      wh.rotation.z=Math.PI/2; wh.position.set(wx,0.65,wz); this.scene.add(wh);
+      const ri=new THREE.Mesh(new THREE.CylinderGeometry(0.38,0.38,0.42,8),rimM);
+      ri.rotation.z=Math.PI/2; ri.position.set(wx,0.65,wz); this.scene.add(ri);
+    }
+    // Headlights
+    const headM=M(0xffeecc,0.1,{emissive:new THREE.Color(0xffeedd),emissiveIntensity:1.5});
+    this._box(0.55,0.3,0.08,headM,-3.2,1.9,17.7,0,false);
+    this._box(0.55,0.3,0.08,headM, 3.2,1.9,17.7,0,false);
+    // Tail lights
+    const tailM=M(0x880000,0.1,{emissive:new THREE.Color(0xff2200),emissiveIntensity:1.0});
+    this._box(0.55,0.25,0.08,tailM,-3.2,2.5,3.85,0,false);
+    this._box(0.55,0.25,0.08,tailM, 3.2,2.5,3.85,0,false);
+  }
+
+  _buildStreetScene() {
+    const M=(c,r,ex={})=>new THREE.MeshStandardMaterial({color:c,roughness:r,...ex});
+    const grassM   =M(0x0c1a08,0.97);
+    const asphaltM =M(0x0d0d11,0.9);
+    const concreteM=M(0x181818,0.85);
+    const extWallM =M(0x1c1510,0.95);
+    const roofM    =M(0x0e0b08,0.97);
+    const flat=(w,d,mat,px,py,pz)=>{
+      const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),mat);
+      m.rotation.x=-Math.PI/2; m.position.set(px,py,pz);
+      m.receiveShadow=true; this.scene.add(m);
+    };
+    // Ground
+    flat(200,200,grassM,0,-0.02,0);
+    // Driveway (z:14 to 22)
+    flat(14,8,M(0x141414,0.85),0,0.01,18);
+    const lineM=M(0x303022,0.9);
+    this._box(0.08,0.04,7,lineM,-4.5,0.02,17.5,0,false);
+    this._box(0.08,0.04,7,lineM, 4.5,0.02,17.5,0,false);
+    this._box(14,0.04,0.08,lineM,0,0.02,21.5,0,false);
+    // South sidewalk (z:22 to 24)
+    flat(30,2,concreteM,0,0.02,23);
+    this._box(30,0.12,0.2,M(0x1a1a1a,0.9),0,0.06,22.1,0,false);
+    this._box(30,0.12,0.2,M(0x1a1a1a,0.9),0,0.06,23.9,0,false);
+    // Road (z:24 to 32)
+    flat(80,8,asphaltM,0,0.01,28);
+    const dashM=M(0x3a3a28,0.9);
+    for(let x=-36;x<=36;x+=4) this._box(2.5,0.04,0.12,dashM,x,0.02,28,0,false);
+    // Far sidewalk (z:32 to 34)
+    flat(80,2,concreteM,0,0.02,33);
+    this._box(80,0.12,0.2,M(0x1a1a1a,0.9),0,0.06,32.1,0,false);
+    this._box(80,0.12,0.2,M(0x1a1a1a,0.9),0,0.06,33.9,0,false);
+    // Neighbor houses across the road (z:36 to 46)
+    const winM=M(0x0a0f0a,0.3,{emissive:new THREE.Color(0x1a2808),emissiveIntensity:0.6});
+    for(const[hx,hw]of[[-22,10],[-9,9],[3,11],[15,9]]){
+      this._box(hw,4.5,10,extWallM,hx,2.25,41,0,false);
+      this._box(hw+1,0.5,10.6,roofM,hx,4.75,41,0,false);
+      this._box(1.4,1.0,0.08,winM,hx-hw/4,2.5,36.05,0,false);
+      this._box(1.4,1.0,0.08,winM,hx+hw/4,2.5,36.05,0,false);
+      this._box(0.9,1.8,0.08,M(0x1c1008,0.9),hx,0.9,36.05,0,false);
+    }
+    // Street lamps (south side of road, z≈22.8)
+    const poleM=M(0x181818,0.4,{metalness:0.6});
+    const lampHeadM=M(0x888870,0.3,{emissive:new THREE.Color(0xffcc44),emissiveIntensity:2.2});
+    for(const lx of[-18,-6,6,18]){
+      this._cyl(0.06,0.08,4.5,6,poleM,lx,2.25,22.8);
+      this._box(1.4,0.08,0.08,poleM,lx+0.7,4.55,22.8,0,false);
+      this._box(0.6,0.22,0.32,lampHeadM,lx+1.4,4.5,22.8,0,false);
+      const sl=new THREE.PointLight(0xffdd88,3.5,16,2);
+      sl.position.set(lx+1.4,4.2,22.8); this.scene.add(sl);
+    }
+    // House exterior perimeter walls
+    this._box(10,3,0.2,extWallM, 0,1.5,-10.1,0,false); // north (stairs)
+    this._box(8, 3,0.2,extWallM,-8,1.5,-4.1, 0,false); // north-west (living rm)
+    this._box(8, 3,0.2,extWallM, 8,1.5,-4.1, 0,false); // north-east (dining rm)
+    this._box(0.2,3,8, extWallM,-20.1,1.5,0,  0,false); // west (study)
+    this._box(0.2,3,16,extWallM, 12.1,1.5,4,  0,false); // east (kitchen/dining)
+    this._box(8,  3,0.2,extWallM,8,1.5,12.1,  0,false); // south (kitchen)
+    // Roofs
+    this._box(40,0.3,26,roofM,-1,3.12,0,  0,false); // ground floor
+    this._box(16,0.3,20,roofM,-8,9.12,-20,0,false); // top floor
   }
 
   _addTrim(room) {
