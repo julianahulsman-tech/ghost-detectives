@@ -1225,10 +1225,13 @@ class LightingManager {
     for (const room of ROOMS) {
       if (room.id === 'van') continue; // van lit by HouseDetails strip lights
       const { min,max } = room.bounds;
-      const light = new THREE.PointLight(colors[room.floor]??0xffcc88, 2.5, 16, 2);
+      const isFoyer = room.id === 'foyer';
+      const baseInt = isFoyer ? 8.0 : 2.5;
+      const baseRange = isFoyer ? 22 : 16;
+      const light = new THREE.PointLight(colors[room.floor]??0xffcc88, baseInt, baseRange, 2);
       light.position.set((min.x+max.x)/2, max.y-0.4, (min.z+max.z)/2);
       light.castShadow = false;
-      light.userData.base = 2.5;
+      light.userData.base = baseInt;
       scene.add(light);
       this._lights.set(room.id, light);
       this._scheduleFlicker(room.id);
