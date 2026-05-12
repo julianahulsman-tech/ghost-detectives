@@ -1226,8 +1226,8 @@ class LightingManager {
       if (room.id === 'van') continue; // van lit by HouseDetails strip lights
       const { min,max } = room.bounds;
       const isFoyer = room.id === 'foyer';
-      const baseInt = isFoyer ? 8.0 : 2.5;
-      const baseRange = isFoyer ? 22 : 16;
+      const baseInt = isFoyer ? 28.0 : 2.5;
+      const baseRange = isFoyer ? 25 : 16;
       const light = new THREE.PointLight(colors[room.floor]??0xffcc88, baseInt, baseRange, 2);
       light.position.set((min.x+max.x)/2, max.y-0.4, (min.z+max.z)/2);
       light.castShadow = false;
