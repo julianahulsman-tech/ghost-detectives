@@ -165,20 +165,20 @@ const PLAYER_HEIGHT = 1.7, PLAYER_RADIUS = 0.4, DOOR_WIDTH = 1.8, DOOR_HEIGHT = 
 
 // ── Ghost data ───────────────────────────────────────────────────────────────
 const GHOST_TYPES = [
-  { id:'banshee',     name:'Banshee',     evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.FINGERPRINTS], specialAbility:null, huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'A wailing spirit that heralds death.' },
-  { id:'demon',       name:'Demon',       evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'One of the most vicious entities.' },
-  { id:'mare',        name:'Mare',        evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS, EVIDENCE.SPIRIT_BOX], specialAbility:null, huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'The source of all nightmares.' },
-  { id:'spirit',      name:'Spirit',      evidence:[EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING, EVIDENCE.FINGERPRINTS], specialAbility:null, huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'The most common ghost encountered.' },
-  { id:'poltergeist', name:'Poltergeist', evidence:[EVIDENCE.SPIRIT_BOX, EVIDENCE.FINGERPRINTS, EVIDENCE.GHOST_ORBS], specialAbility:null, huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'A noisy ghost capable of moving objects.' },
-  { id:'jinn',        name:'Jinn',        evidence:[EVIDENCE.EMF5, EVIDENCE.GHOST_ORBS, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterWithoutPower', huntBehavior:{baseSpeed:1.7,speedModifier:2.5,modifierCondition:'powerOff'}, flavourText:'A territorial ghost that exploits the environment.' },
-  { id:'shade',       name:'Shade',       evidence:[EVIDENCE.EMF5, EVIDENCE.WRITING, EVIDENCE.GHOST_ORBS], specialAbility:'withholdEvidenceInGroup', huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'A shy ghost — investigate alone.' },
-  { id:'yurei',       name:'Yurei',       evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'A ghost that has returned to the physical world.' },
-  { id:'oni',         name:'Oni',         evidence:[EVIDENCE.EMF5, EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'A rare and aggressive variant of the Demon.' },
-  { id:'revenant',    name:'Revenant',    evidence:[EVIDENCE.EMF5, EVIDENCE.WRITING, EVIDENCE.FINGERPRINTS], specialAbility:'proximitySpeed', huntBehavior:{baseSpeed:1.0,speedModifier:3.0,modifierCondition:'farFromPlayer',proximityThreshold:5}, flavourText:'Very fast from afar, slow up close.' },
-  { id:'phantom',     name:'Phantom',     evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS], specialAbility:'sanityDrainOnLook', huntBehavior:{baseSpeed:1.7,speedModifier:null,modifierCondition:null}, flavourText:'Sanity drains while looking at it during a hunt.' },
-  { id:'wendigo',     name:'Wendigo',     evidence:[EVIDENCE.FINGERPRINTS, EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterAtLowSanity', huntBehavior:{baseSpeed:1.7,speedModifier:2.5,modifierCondition:'playerSanityBelow30'}, flavourText:'Feeds on fear — grows faster at low sanity.' },
-  { id:'upyr',        name:'Upyr',        evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX], specialAbility:'permanentSpeedOnDeath', huntBehavior:{baseSpeed:1.7,speedModifier:0.8,modifierCondition:'playerDied'}, flavourText:'Grows permanently faster each time a player dies.' },
-  { id:'egui',        name:'Egui',        evidence:[EVIDENCE.GHOST_ORBS, EVIDENCE.WRITING, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterIfPlayerHoldsItem', huntBehavior:{baseSpeed:1.7,speedModifier:2.5,modifierCondition:'playerHoldingTriggerItem'}, flavourText:'Fixated on a specific possession.' },
+  { id:'banshee',     name:'Banshee',     evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.FINGERPRINTS], specialAbility:null, huntBehavior:{baseSpeed:4.8,speedModifier:null,modifierCondition:null}, flavourText:'A wailing spirit that heralds death.' },
+  { id:'demon',       name:'Demon',       evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:5.2,speedModifier:null,modifierCondition:null}, flavourText:'One of the most vicious entities.' },
+  { id:'mare',        name:'Mare',        evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS, EVIDENCE.SPIRIT_BOX], specialAbility:null, huntBehavior:{baseSpeed:4.5,speedModifier:null,modifierCondition:null}, flavourText:'The source of all nightmares.' },
+  { id:'spirit',      name:'Spirit',      evidence:[EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING, EVIDENCE.FINGERPRINTS], specialAbility:null, huntBehavior:{baseSpeed:4.5,speedModifier:null,modifierCondition:null}, flavourText:'The most common ghost encountered.' },
+  { id:'poltergeist', name:'Poltergeist', evidence:[EVIDENCE.SPIRIT_BOX, EVIDENCE.FINGERPRINTS, EVIDENCE.GHOST_ORBS], specialAbility:null, huntBehavior:{baseSpeed:4.8,speedModifier:null,modifierCondition:null}, flavourText:'A noisy ghost capable of moving objects.' },
+  { id:'jinn',        name:'Jinn',        evidence:[EVIDENCE.EMF5, EVIDENCE.GHOST_ORBS, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterWithoutPower', huntBehavior:{baseSpeed:4.5,speedModifier:2.0,modifierCondition:'powerOff'}, flavourText:'A territorial ghost that exploits the environment.' },
+  { id:'shade',       name:'Shade',       evidence:[EVIDENCE.EMF5, EVIDENCE.WRITING, EVIDENCE.GHOST_ORBS], specialAbility:'withholdEvidenceInGroup', huntBehavior:{baseSpeed:4.2,speedModifier:null,modifierCondition:null}, flavourText:'A shy ghost — investigate alone.' },
+  { id:'yurei',       name:'Yurei',       evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:4.8,speedModifier:null,modifierCondition:null}, flavourText:'A ghost that has returned to the physical world.' },
+  { id:'oni',         name:'Oni',         evidence:[EVIDENCE.EMF5, EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:5.5,speedModifier:null,modifierCondition:null}, flavourText:'A rare and aggressive variant of the Demon.' },
+  { id:'revenant',    name:'Revenant',    evidence:[EVIDENCE.EMF5, EVIDENCE.WRITING, EVIDENCE.FINGERPRINTS], specialAbility:'proximitySpeed', huntBehavior:{baseSpeed:2.0,speedModifier:6.0,modifierCondition:'farFromPlayer',proximityThreshold:5}, flavourText:'Very fast from afar, slow up close.' },
+  { id:'phantom',     name:'Phantom',     evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS], specialAbility:'sanityDrainOnLook', huntBehavior:{baseSpeed:4.5,speedModifier:null,modifierCondition:null}, flavourText:'Sanity drains while looking at it during a hunt.' },
+  { id:'wendigo',     name:'Wendigo',     evidence:[EVIDENCE.FINGERPRINTS, EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterAtLowSanity', huntBehavior:{baseSpeed:4.5,speedModifier:2.5,modifierCondition:'playerSanityBelow30'}, flavourText:'Feeds on fear — grows faster at low sanity.' },
+  { id:'upyr',        name:'Upyr',        evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX], specialAbility:'permanentSpeedOnDeath', huntBehavior:{baseSpeed:4.5,speedModifier:1.0,modifierCondition:'playerDied'}, flavourText:'Grows permanently faster each time a player dies.' },
+  { id:'egui',        name:'Egui',        evidence:[EVIDENCE.GHOST_ORBS, EVIDENCE.WRITING, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterIfPlayerHoldsItem', huntBehavior:{baseSpeed:4.5,speedModifier:2.5,modifierCondition:'playerHoldingTriggerItem'}, flavourText:'Fixated on a specific possession.' },
 ];
 
 // ── House data ───────────────────────────────────────────────────────────────
@@ -443,12 +443,14 @@ class LocalGame {
     if (gRoom !== pRoom) {
       const path = bfsPath(gRoom, pRoom);
       if (path && path.length > 1) {
-        const nr = ROOM_MAP[path[1]];
+        const cur = ROOM_MAP[path[0]], nr = ROOM_MAP[path[1]];
         if (nr && nr.id !== 'van') {
-          const c = roomCenter(nr);
-          this._moveGhost(c, speed);
+          // Navigate toward the shared door gap rather than room center
+          const target = cur ? this._doorGap(cur, nr) : roomCenter(nr);
+          this._moveGhost(target, speed);
           const g = this._ghost.position;
-          if (g.x >= nr.bounds.min.x && g.x <= nr.bounds.max.x && g.z >= nr.bounds.min.z && g.z <= nr.bounds.max.z) this._ghost.currentRoomId = nr.id;
+          if (g.x >= nr.bounds.min.x && g.x <= nr.bounds.max.x && g.z >= nr.bounds.min.z && g.z <= nr.bounds.max.z)
+            this._ghost.currentRoomId = nr.id;
         }
       }
     } else {
@@ -456,7 +458,31 @@ class LocalGame {
     }
     this._emit('state:ghost', { position: this._ghost.position, isVisible: true });
     const g = this._ghost.position, p = this._player.position;
-    if (Math.sqrt((g.x-p.x)**2+(g.z-p.z)**2) < 0.8) this._killPlayer();
+    if (Math.sqrt((g.x-p.x)**2+(g.z-p.z)**2) < 1.0) this._killPlayer();
+  }
+
+  // Returns a point at the door gap between two adjacent rooms, falling back to next room center
+  _doorGap(from, to) {
+    const fa = from.bounds, tb = to.bounds;
+    // Z-axis shared wall
+    if (Math.abs(fa.min.z - tb.max.z) < 0.2) {
+      const x0=Math.max(fa.min.x,tb.min.x), x1=Math.min(fa.max.x,tb.max.x);
+      if (x1 > x0) return { x:(x0+x1)/2, y:to.bounds.min.y+1.2, z:fa.min.z };
+    }
+    if (Math.abs(fa.max.z - tb.min.z) < 0.2) {
+      const x0=Math.max(fa.min.x,tb.min.x), x1=Math.min(fa.max.x,tb.max.x);
+      if (x1 > x0) return { x:(x0+x1)/2, y:to.bounds.min.y+1.2, z:fa.max.z };
+    }
+    // X-axis shared wall
+    if (Math.abs(fa.min.x - tb.max.x) < 0.2) {
+      const z0=Math.max(fa.min.z,tb.min.z), z1=Math.min(fa.max.z,tb.max.z);
+      if (z1 > z0) return { x:fa.min.x, y:to.bounds.min.y+1.2, z:(z0+z1)/2 };
+    }
+    if (Math.abs(fa.max.x - tb.min.x) < 0.2) {
+      const z0=Math.max(fa.min.z,tb.min.z), z1=Math.min(fa.max.z,tb.max.z);
+      if (z1 > z0) return { x:fa.max.x, y:to.bounds.min.y+1.2, z:(z0+z1)/2 };
+    }
+    return roomCenter(to);
   }
 
   _moveGhost(target, speed) {
@@ -677,6 +703,7 @@ class HouseDetails {
       fabric:  M(0x1c1515,1.0),
       metal:   M(0x1a1a1a,0.4,{metalness:0.7}),
       ceramic: M(0x1a1c1a,0.6),
+      topWall: M(0x1e1814,0.92),
       paper:   M(0x1e1b14,1.0,{side:THREE.DoubleSide}),
       cobweb:   M(0x888880,1.0,{transparent:true,opacity:0.22,side:THREE.DoubleSide}),
       vanMetal: M(0x2a2a2e,0.5,{metalness:0.6}),
@@ -730,6 +757,7 @@ class HouseDetails {
       if(room.type!=='stairwell') {
         this._addTrim(room);
         this._addDoorFrames(room);
+        if(room.floor==='top') this._addThickWalls(room);
         this._addFurniture(room);
         this._addTextureOverlays(room);
       }
@@ -1004,6 +1032,45 @@ class HouseDetails {
     }
   }
 
+  _addThickWalls(room) {
+    const {min,max}=room.bounds;
+    const W=max.x-min.x, H=max.y-min.y, D=max.z-min.z;
+    const T=0.22, DW=DOOR_WIDTH, DH=DOOR_HEIGHT;
+    const wm=this.MAT.topWall;
+    const doorX=(face)=>{
+      for(const cid of room.connections){const c=ROOM_MAP[cid];if(!c)continue;const cb=c.bounds;
+        if(face==='north'&&Math.abs(cb.max.z-min.z)<0.15){const x0=Math.max(min.x,cb.min.x),x1=Math.min(max.x,cb.max.x);if(x1>x0)return(x0+x1)/2;}
+        if(face==='south'&&Math.abs(cb.min.z-max.z)<0.15){const x0=Math.max(min.x,cb.min.x),x1=Math.min(max.x,cb.max.x);if(x1>x0)return(x0+x1)/2;}
+      }return null;
+    };
+    const doorZ=(face)=>{
+      for(const cid of room.connections){const c=ROOM_MAP[cid];if(!c)continue;const cb=c.bounds;
+        if(face==='west'&&Math.abs(cb.max.x-min.x)<0.15){const z0=Math.max(min.z,cb.min.z),z1=Math.min(max.z,cb.max.z);if(z1>z0)return(z0+z1)/2;}
+        if(face==='east'&&Math.abs(cb.min.x-max.x)<0.15){const z0=Math.max(min.z,cb.min.z),z1=Math.min(max.z,cb.max.z);if(z1>z0)return(z0+z1)/2;}
+      }return null;
+    };
+    const addWallZ=(zPos,dcx)=>{
+      const cy=min.y+H/2;
+      if(dcx===null){this._box(W,H,T,wm,(min.x+max.x)/2,cy,zPos,0,false);return;}
+      const lW=dcx-DW/2-min.x,rW=max.x-(dcx+DW/2);
+      if(lW>0.05)this._box(lW,H,T,wm,min.x+lW/2,cy,zPos,0,false);
+      if(rW>0.05)this._box(rW,H,T,wm,max.x-rW/2,cy,zPos,0,false);
+      if(H-DH>0.05)this._box(DW,H-DH,T,wm,dcx,min.y+DH+(H-DH)/2,zPos,0,false);
+    };
+    const addWallX=(xPos,dcz)=>{
+      const cy=min.y+H/2;
+      if(dcz===null){this._box(T,H,D,wm,xPos,cy,(min.z+max.z)/2,0,false);return;}
+      const fW=dcz-DW/2-min.z,bW=max.z-(dcz+DW/2);
+      if(fW>0.05)this._box(T,H,fW,wm,xPos,cy,min.z+fW/2,0,false);
+      if(bW>0.05)this._box(T,H,bW,wm,xPos,cy,max.z-bW/2,0,false);
+      if(H-DH>0.05)this._box(T,H-DH,DW,wm,xPos,min.y+DH+(H-DH)/2,dcz,0,false);
+    };
+    addWallZ(min.z+T/2,doorX('north'));
+    addWallZ(max.z-T/2,doorX('south'));
+    addWallX(min.x+T/2,doorZ('west'));
+    addWallX(max.x-T/2,doorZ('east'));
+  }
+
   _addStairs() {
     const SM=this.MAT.stair, RM=this.MAT.metal;
     const RISE=3/8, RUN=6/8, STEPS=8;
@@ -1097,13 +1164,20 @@ class HouseDetails {
 
   _furnishBedroom(room) {
     const {min,max}=room.bounds, [D,F,A]=[this.MAT.darkWood,this.MAT.fabric,this.MAT.aged];
-    const bx=max.x-1.1;
-    this._box(2.2,.35,3.5,D,bx,min.y+.175,-23.87);
-    this._box(2.2,.78,.12,D,bx,min.y+.56,max.z-.06);
-    this._box(2.0,.25,3.2,F,bx,min.y+.475,-23.87);
-    this._box(.78,.12,.5,F,bx,min.y+.72,max.z-.5);
-    this._box(.5,2.4,1.2,D,min.x+.25,min.y+1.2,-25.5);
-    this._box(.48,.6,.42,A,bx-1.35,min.y+.3,max.z-1.1);
+    const cx=(min.x+max.x)/2, cz=(min.z+max.z)/2;
+    // Bed against the back wall (max.z), centered in X
+    this._box(2.2,.35,3.5,D,cx,min.y+.175,cz+.6);
+    this._box(2.2,.78,.12,D,cx,min.y+.56,max.z-.06);
+    this._box(2.0,.25,3.2,F,cx,min.y+.475,cz+.6);
+    this._box(.78,.12,.5,F,cx,min.y+.72,max.z-.5);
+    // Wardrobe against left wall
+    this._box(.5,2.4,1.2,D,min.x+.25,min.y+1.2,cz-.5);
+    // Nightstand beside headboard
+    this._box(.48,.6,.42,A,cx+1.35,min.y+.3,max.z-1.1);
+    // Small side table
+    this._box(.45,.55,.45,A,cx-1.35,min.y+.275,max.z-1.2);
+    // Wall picture frame above wardrobe
+    this._box(.04,.8,.6,D,min.x+.02,min.y+1.8,cz-.5,0,false);
   }
 
   _furnishUtility(room) {
@@ -1151,11 +1225,25 @@ class HouseDetails {
   }
 
   _furnishHallway(room) {
-    const {min,max}=room.bounds, D=this.MAT.darkWood, fy=min.y;
+    const {min,max}=room.bounds, [D,A,M]=[this.MAT.darkWood,this.MAT.aged,this.MAT.metal], fy=min.y;
     const cx=(min.x+max.x)/2, cz=(min.z+max.z)/2;
+    // Console table
     this._box(1.2,.06,.4,D,cx,fy+.82,cz);
     for(const [lx,lz] of [[cx-.5,cz-.16],[cx+.5,cz-.16],[cx-.5,cz+.16],[cx+.5,cz+.16]])
       this._cyl(.03,.03,.82,5,D,lx,fy+.41,lz);
+    // Tall mirror on wall
+    this._box(.05,.9,.55,A,min.x+.02,fy+1.2,cz,0,false);
+    // Small decorative vase on table
+    this._cyl(.07,.05,.24,8,A,cx+.3,fy+.95,cz+.05);
+    // Coat hooks near wall (if room is top floor landing)
+    if(room.floor==='top'){
+      this._cyl(.03,.03,1.2,6,M,min.x+.5,fy+.6,min.z+.4);
+      this._box(.6,.04,.04,M,min.x+.5,fy+1.3,min.z+.4,0,false);
+      for(let i=0;i<3;i++){
+        const hm=new THREE.Mesh(new THREE.SphereGeometry(.05,6,6),M);
+        hm.position.set(min.x+.5+(i-.8)*.22,fy+1.32,min.z+.45); hm.castShadow=false; this.scene.add(hm);
+      }
+    }
   }
 
   _furnishSmallRoom(room) {
@@ -1233,21 +1321,26 @@ class LightingManager {
       const cx=(min.x+max.x)/2, cz=(min.z+max.z)/2;
       const col = colors[room.floor] ?? 0xffcc88;
       const D = max.z - min.z;
+      const isTop = room.floor === 'top';
+      const baseInt = isTop ? 38 : 28;
+      const baseRange = isTop ? 30 : 25;
+      const fillInt = isTop ? 9 : 6;
+      const fillRange = isTop ? 22 : 18;
       const roomLights = [];
       // 3 ceiling lights spread along the room depth
       for (const dz of [-D/4, 0, D/4]) {
-        const l = new THREE.PointLight(col, 28, 25, 2);
+        const l = new THREE.PointLight(col, baseInt, baseRange, 2);
         l.position.set(cx, max.y-0.18, cz+dz);
         l.castShadow = false;
         scene.add(l);
-        roomLights.push({light:l, base:28});
+        roomLights.push({light:l, base:baseInt});
       }
       // Fill light at waist height
-      const lf = new THREE.PointLight(col, 6, 18, 2);
+      const lf = new THREE.PointLight(col, fillInt, fillRange, 2);
       lf.position.set(cx, min.y+1.2, cz);
       lf.castShadow = false;
       scene.add(lf);
-      roomLights.push({light:lf, base:6});
+      roomLights.push({light:lf, base:fillInt});
       this._lights.set(room.id, roomLights);
       this._scheduleBlink(room.id);
     }
