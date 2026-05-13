@@ -712,6 +712,7 @@ class HouseDetails {
       metal:   M(0x1a1a1a,0.4,{metalness:0.7}),
       ceramic: M(0x1a1c1a,0.6),
       topWall: M(0x1e1814,0.92),
+      door:    M(0x4a2a10,0.8),
       paper:   M(0x1e1b14,1.0,{side:THREE.DoubleSide}),
       cobweb:   M(0x888880,1.0,{transparent:true,opacity:0.22,side:THREE.DoubleSide}),
       vanMetal: M(0x2a2a2e,0.5,{metalness:0.6}),
@@ -1019,23 +1020,52 @@ class HouseDetails {
   }
 
   _addDoorFrames(room) {
-    const {min,max}=room.bounds, T=this.MAT.trim, jW=.08;
+    const {min,max}=room.bounds, T=this.MAT.trim, DM=this.MAT.door, jW=.08;
+    const DW=DOOR_WIDTH, DH=DOOR_HEIGHT;
     for(const cid of room.connections) {
       const c=ROOM_MAP[cid]; if(!c) continue;
       const cb=c.bounds;
+
+      // North face (min.z): connected room's back wall meets my front
       if(Math.abs(cb.max.z-min.z)<.15) {
         const x0=Math.max(min.x,cb.min.x),x1=Math.min(max.x,cb.max.x);
-        if(x1>x0){const dcx=(x0+x1)/2;
-          this._box(jW,DOOR_HEIGHT,jW,T,dcx-DOOR_WIDTH/2-jW/2,min.y+DOOR_HEIGHT/2,min.z,0,false);
-          this._box(jW,DOOR_HEIGHT,jW,T,dcx+DOOR_WIDTH/2+jW/2,min.y+DOOR_HEIGHT/2,min.z,0,false);
-          this._box(DOOR_WIDTH+jW*2,jW,jW,T,dcx,min.y+DOOR_HEIGHT+jW/2,min.z,0,false);}
+        if(x1>x0){
+          const dcx=(x0+x1)/2;
+          // Frame trim
+          this._box(jW,DH,jW,T,dcx-DW/2-jW/2,min.y+DH/2,min.z,0,false);
+          this._box(jW,DH,jW,T,dcx+DW/2+jW/2,min.y+DH/2,min.z,0,false);
+          this._box(DW+jW*2,jW,jW,T,dcx,min.y+DH+jW/2,min.z,0,false);
+          // Door panel — hinge at left jamb, opens 18° into room (+z)
+          const a=Math.PI/10, hx=dcx-DW/2;
+          const p=new THREE.Mesh(new THREE.BoxGeometry(DW,DH,0.06),DM);
+          p.position.set(hx+DW/2*Math.cos(a), min.y+DH/2, min.z+DW/2*Math.sin(a));
+          p.rotation.y=-a; p.castShadow=false; p.receiveShadow=true; this.scene.add(p);
+          // Door knob
+          const k=new THREE.Mesh(new THREE.SphereGeometry(0.045,6,6),T);
+          k.position.set(hx+DW*0.85*Math.cos(a), min.y+1.05, min.z+DW*0.85*Math.sin(a)+0.04);
+          k.castShadow=false; this.scene.add(k);
+        }
       }
+
+      // East face (max.x): connected room's left wall meets my right
       if(Math.abs(cb.min.x-max.x)<.15) {
         const z0=Math.max(min.z,cb.min.z),z1=Math.min(max.z,cb.max.z);
-        if(z1>z0){const dcz=(z0+z1)/2;
-          this._box(jW,DOOR_HEIGHT,jW,T,max.x,min.y+DOOR_HEIGHT/2,dcz-DOOR_WIDTH/2-jW/2,0,false);
-          this._box(jW,DOOR_HEIGHT,jW,T,max.x,min.y+DOOR_HEIGHT/2,dcz+DOOR_WIDTH/2+jW/2,0,false);
-          this._box(jW,jW,DOOR_WIDTH+jW*2,T,max.x,min.y+DOOR_HEIGHT+jW/2,dcz,0,false);}
+        if(z1>z0){
+          const dcz=(z0+z1)/2;
+          // Frame trim
+          this._box(jW,DH,jW,T,max.x,min.y+DH/2,dcz-DW/2-jW/2,0,false);
+          this._box(jW,DH,jW,T,max.x,min.y+DH/2,dcz+DW/2+jW/2,0,false);
+          this._box(jW,jW,DW+jW*2,T,max.x,min.y+DH+jW/2,dcz,0,false);
+          // Door panel — hinge at front jamb (min z side), opens 18° into room (-x)
+          const a=Math.PI/10, hz=dcz-DW/2;
+          const p=new THREE.Mesh(new THREE.BoxGeometry(0.06,DH,DW),DM);
+          p.position.set(max.x-DW/2*Math.sin(a), min.y+DH/2, hz+DW/2*Math.cos(a));
+          p.rotation.y=-a; p.castShadow=false; p.receiveShadow=true; this.scene.add(p);
+          // Door knob
+          const k=new THREE.Mesh(new THREE.SphereGeometry(0.045,6,6),T);
+          k.position.set(max.x-DW*0.85*Math.sin(a)-0.04, min.y+1.05, hz+DW*0.85*Math.cos(a));
+          k.castShadow=false; this.scene.add(k);
+        }
       }
     }
   }
@@ -1493,21 +1523,54 @@ class PlayerController {
   }
   _buildWalls() {
     const map=new Map();
+    const DW=DOOR_WIDTH, DH=DOOR_HEIGHT;
     for(const room of ROOMS){
-      const {min,max}=room.bounds, t=0.1, walls=[];
-      const hasConn=(face)=>{
+      const {min,max}=room.bounds, t=0.12, walls=[];
+      // Collect sorted door-gap centres along a face axis
+      const dcxs=(face)=>{
+        const out=[];
         for(const cid of room.connections){ const c=ROOM_MAP[cid]; if(!c) continue; const cb=c.bounds;
-          const xO=min.x<cb.max.x&&cb.min.x<max.x, zO=min.z<cb.max.z&&cb.min.z<max.z;
-          if(face==='north'&&Math.abs(cb.max.z-min.z)<0.2&&xO) return true;
-          if(face==='south'&&Math.abs(cb.min.z-max.z)<0.2&&xO) return true;
-          if(face==='west'&&Math.abs(cb.max.x-min.x)<0.2&&zO) return true;
-          if(face==='east'&&Math.abs(cb.min.x-max.x)<0.2&&zO) return true;
-        } return false;
+          const xO=min.x<cb.max.x&&cb.min.x<max.x;
+          if(face==='north'&&Math.abs(cb.max.z-min.z)<0.2&&xO){ const x0=Math.max(min.x,cb.min.x),x1=Math.min(max.x,cb.max.x); if(x1>x0)out.push((x0+x1)/2); }
+          if(face==='south'&&Math.abs(cb.min.z-max.z)<0.2&&xO){ const x0=Math.max(min.x,cb.min.x),x1=Math.min(max.x,cb.max.x); if(x1>x0)out.push((x0+x1)/2); }
+        } return out.sort((a,b)=>a-b);
       };
-      if(!hasConn('north')) walls.push(new THREE.Box3(new THREE.Vector3(min.x,min.y,min.z-t),new THREE.Vector3(max.x,max.y,min.z+t)));
-      if(!hasConn('south')) walls.push(new THREE.Box3(new THREE.Vector3(min.x,min.y,max.z-t),new THREE.Vector3(max.x,max.y,max.z+t)));
-      if(!hasConn('west'))  walls.push(new THREE.Box3(new THREE.Vector3(min.x-t,min.y,min.z),new THREE.Vector3(min.x+t,max.y,max.z)));
-      if(!hasConn('east'))  walls.push(new THREE.Box3(new THREE.Vector3(max.x-t,min.y,min.z),new THREE.Vector3(max.x+t,max.y,max.z)));
+      const dczs=(face)=>{
+        const out=[];
+        for(const cid of room.connections){ const c=ROOM_MAP[cid]; if(!c) continue; const cb=c.bounds;
+          const zO=min.z<cb.max.z&&cb.min.z<max.z;
+          if(face==='west'&&Math.abs(cb.max.x-min.x)<0.2&&zO){ const z0=Math.max(min.z,cb.min.z),z1=Math.min(max.z,cb.max.z); if(z1>z0)out.push((z0+z1)/2); }
+          if(face==='east'&&Math.abs(cb.min.x-max.x)<0.2&&zO){ const z0=Math.max(min.z,cb.min.z),z1=Math.min(max.z,cb.max.z); if(z1>z0)out.push((z0+z1)/2); }
+        } return out.sort((a,b)=>a-b);
+      };
+      // Build Box3 segments for a Z-axis wall (runs along X)
+      const addZ=(zPos,gaps)=>{
+        if(!gaps.length){ walls.push(new THREE.Box3(new THREE.Vector3(min.x,min.y,zPos-t),new THREE.Vector3(max.x,max.y,zPos+t))); return; }
+        let cur=min.x;
+        for(const dcx of gaps){
+          const L=dcx-DW/2, R=dcx+DW/2;
+          if(L-cur>0.05) walls.push(new THREE.Box3(new THREE.Vector3(cur,min.y,zPos-t),new THREE.Vector3(L,max.y,zPos+t)));
+          walls.push(new THREE.Box3(new THREE.Vector3(L,min.y+DH,zPos-t),new THREE.Vector3(R,max.y,zPos+t))); // header
+          cur=R;
+        }
+        if(max.x-cur>0.05) walls.push(new THREE.Box3(new THREE.Vector3(cur,min.y,zPos-t),new THREE.Vector3(max.x,max.y,zPos+t)));
+      };
+      // Build Box3 segments for an X-axis wall (runs along Z)
+      const addX=(xPos,gaps)=>{
+        if(!gaps.length){ walls.push(new THREE.Box3(new THREE.Vector3(xPos-t,min.y,min.z),new THREE.Vector3(xPos+t,max.y,max.z))); return; }
+        let cur=min.z;
+        for(const dcz of gaps){
+          const F=dcz-DW/2, B=dcz+DW/2;
+          if(F-cur>0.05) walls.push(new THREE.Box3(new THREE.Vector3(xPos-t,min.y,cur),new THREE.Vector3(xPos+t,max.y,F)));
+          walls.push(new THREE.Box3(new THREE.Vector3(xPos-t,min.y+DH,F),new THREE.Vector3(xPos+t,max.y,B))); // header
+          cur=B;
+        }
+        if(max.z-cur>0.05) walls.push(new THREE.Box3(new THREE.Vector3(xPos-t,min.y,cur),new THREE.Vector3(xPos+t,max.y,max.z)));
+      };
+      addZ(min.z, dcxs('north'));
+      addZ(max.z, dcxs('south'));
+      addX(min.x, dczs('west'));
+      addX(max.x, dczs('east'));
       map.set(room.id, walls);
     }
     return map;
