@@ -2122,6 +2122,7 @@ function buildToolModel(id) {
       break;
     }
   }
+  g.scale.setScalar(1.8);
   return g;
 }
 
@@ -2185,15 +2186,15 @@ class VanToolShelf {
       const cx    = sign * 4.90 - sign * DEPTH/2;  // same cx as above
 
       const model = buildToolModel(def.id);
-      model.position.set(cx, SHELF_Y+0.03, def.z);
+      model.position.set(cx, SHELF_Y+0.16, def.z);
       model.rotation.y = sign < 0 ? Math.PI/2 : -Math.PI/2;
       this._scene.add(model);
 
       const light = new THREE.PointLight(def.color, 0.5, 1.8);
-      light.position.set(cx, SHELF_Y+0.38, def.z); this._scene.add(light);
+      light.position.set(cx, SHELF_Y+0.60, def.z); this._scene.add(light);
 
       this._pickups.push({id:def.id, label:def.label, mesh:model, light, available:true,
-        pos:new THREE.Vector3(cx, SHELF_Y+0.03, def.z)});
+        pos:new THREE.Vector3(cx, SHELF_Y+0.16, def.z)});
     }
   }
   getNearby(playerPos,range=1.6){ return this._pickups.find(p=>p.available&&playerPos.distanceTo(p.pos)<range)||null; }
