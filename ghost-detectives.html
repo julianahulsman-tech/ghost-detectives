@@ -890,12 +890,12 @@ class HouseDetails {
     // --- Cab partition pass-through window ---
     this._box(1.5,0.62,0.07, M(0x1c2a1c,0.3), cx, min.y+H-0.82, max.z-0.05, 0,false);
 
-    // --- Wooden overhead shelves above tool rows ---
-    this._box(0.9,0.07,4.8, oakM, min.x+1.15,2.65,8.75, 0,false);
-    this._box(0.9,0.07,4.8, oakM, max.x-1.15,2.65,8.75, 0,false);
+    // --- Wooden overhead shelves above tool rows (flush to wall) ---
+    this._box(0.56,0.07,4.8, oakM, min.x+0.38,2.65,8.75, 0,false);  // back at wall x=-4.90
+    this._box(0.56,0.07,4.8, oakM, max.x-0.38,2.65,8.75, 0,false);
     for(let z=6.5; z<=11; z+=2.25){
-      this._box(0.06,0.48,0.06, oakM, min.x+0.70,2.42,z, 0,false);
-      this._box(0.06,0.48,0.06, oakM, max.x-0.70,2.42,z, 0,false);
+      this._box(0.06,0.48,0.06, oakM, min.x+0.63,2.42,z, 0,false);  // front-edge support posts
+      this._box(0.06,0.48,0.06, oakM, max.x-0.63,2.42,z, 0,false);
     }
 
     // --- Wheel arches (oak) ---
@@ -2144,17 +2144,56 @@ class VanToolShelf {
     this._build();
   }
   _build() {
-    const shelfMat=new THREE.MeshStandardMaterial({color:0x1a0e05,roughness:0.9});
+    const oakM    = new THREE.MeshStandardMaterial({color:0x5C3A1A, roughness:0.95});
+    const walnutM = new THREE.MeshStandardMaterial({color:0x3E2510, roughness:0.95});
+    const box=(w,h,d,mat,x,y,z)=>{
+      const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+      m.position.set(x,y,z); this._scene.add(m);
+    };
+
+    const DEPTH  = 0.52;   // shelf depth from wall toward van centre
+    const THICK  = 0.055;  // shelf board thickness
+    const SHELF_Y= 0.97;   // shelf surface height
+    const Z0=5.9, Z1=11.6, ZL=Z1-Z0, ZC=(Z0+Z1)/2;  // shelf Z extents
+
+    for(const sign of [-1,1]){
+      // sign=-1 → left wall (x=-5), sign=+1 → right wall (x=+5)
+      const wallX = sign * 4.90;            // back face of shelf (against wall)
+      const cx    = wallX - sign*DEPTH/2;   // shelf centre X  (±4.64)
+
+      // Back panel — mounts flat against the wall panel
+      box(0.04, 1.05, ZL, walnutM, wallX-sign*0.02, SHELF_Y-THICK/2+0.525, ZC);
+
+      // Main shelf board
+      box(DEPTH, THICK, ZL, oakM, cx, SHELF_Y-THICK/2, ZC);
+
+      // Front rail (lip at the open edge)
+      box(0.028, 0.065, ZL, walnutM, wallX-sign*DEPTH+sign*0.014, SHELF_Y+0.005, ZC);
+
+      // End caps (close off the unit at each end)
+      for(const ez of [Z0+0.02, Z1-0.02])
+        box(DEPTH, 0.95, 0.04, walnutM, cx, SHELF_Y-THICK/2+0.475, ez);
+
+      // Slot dividers between the four tool positions (midpoints at z=7.25, 8.75, 10.25)
+      for(const dz of [7.25, 8.75, 10.25])
+        box(DEPTH, 0.78, 0.028, walnutM, cx, SHELF_Y-THICK/2+0.39, dz);
+    }
+
+    // Tool models + pickup entries
     for(const def of TOOL_DEFS){
-      const shelf=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.05,0.45),shelfMat);
-      shelf.position.set(def.x,0.97,def.z); this._scene.add(shelf);
-      const model=buildToolModel(def.id);
-      model.position.set(def.x,1.18,def.z);
-      model.rotation.y=def.x<0 ? Math.PI/2 : -Math.PI/2;
+      const sign  = def.x < 0 ? -1 : 1;
+      const cx    = sign * 4.90 - sign * DEPTH/2;  // same cx as above
+
+      const model = buildToolModel(def.id);
+      model.position.set(cx, SHELF_Y+0.03, def.z);
+      model.rotation.y = sign < 0 ? Math.PI/2 : -Math.PI/2;
       this._scene.add(model);
-      const light=new THREE.PointLight(def.color,0.5,1.8);
-      light.position.set(def.x,1.35,def.z); this._scene.add(light);
-      this._pickups.push({id:def.id,label:def.label,mesh:model,light,available:true,pos:new THREE.Vector3(def.x,1.18,def.z)});
+
+      const light = new THREE.PointLight(def.color, 0.5, 1.8);
+      light.position.set(cx, SHELF_Y+0.38, def.z); this._scene.add(light);
+
+      this._pickups.push({id:def.id, label:def.label, mesh:model, light, available:true,
+        pos:new THREE.Vector3(cx, SHELF_Y+0.03, def.z)});
     }
   }
   getNearby(playerPos,range=1.6){ return this._pickups.find(p=>p.available&&playerPos.distanceTo(p.pos)<range)||null; }
