@@ -208,6 +208,16 @@ const ADJACENCY = Object.fromEntries(ROOMS.map(r => [r.id, r.connections]));
 const GHOST_ELIGIBLE_ROOMS = ROOMS.filter(r => r.isGhostEligible).map(r => r.id);
 const GHOST_ROOM_POOL = [...GHOST_ELIGIBLE_ROOMS, 'hidden_room'];
 
+function roomDoorGaps(room, face) {
+  const {min,max}=room.bounds, out=[];
+  for(const cid of room.connections){const c=ROOM_MAP[cid];if(!c)continue;const cb=c.bounds;
+    const xO=min.x<cb.max.x&&cb.min.x<max.x, zO=min.z<cb.max.z&&cb.min.z<max.z;
+    if(face==='north'&&Math.abs(cb.max.z-min.z)<0.15&&xO){const x0=Math.max(min.x,cb.min.x),x1=Math.min(max.x,cb.max.x);if(x1>x0)out.push((x0+x1)/2);}
+    if(face==='south'&&Math.abs(cb.min.z-max.z)<0.15&&xO){const x0=Math.max(min.x,cb.min.x),x1=Math.min(max.x,cb.max.x);if(x1>x0)out.push((x0+x1)/2);}
+    if(face==='west' &&Math.abs(cb.max.x-min.x)<0.15&&zO){const z0=Math.max(min.z,cb.min.z),z1=Math.min(max.z,cb.max.z);if(z1>z0)out.push((z0+z1)/2);}
+    if(face==='east' &&Math.abs(cb.min.x-max.x)<0.15&&zO){const z0=Math.max(min.z,cb.min.z),z1=Math.min(max.z,cb.max.z);if(z1>z0)out.push((z0+z1)/2);}
+  }return out.sort((a,b)=>a-b);
+}
 function findRoomAt(x, y, z) {
   return ROOMS.find(r => x >= r.bounds.min.x && x <= r.bounds.max.x && y >= r.bounds.min.y + PLAYER_HEIGHT * 0.5 && y <= r.bounds.max.y && z >= r.bounds.min.z && z <= r.bounds.max.z);
 }
@@ -246,6 +256,9 @@ class LocalGame {
     this._timers = [];
     this._intervals = [];
     this._huntInterval = null;
+    this._huntLockedOn = false;
+    this._huntStartTime = 0;
+    this._huntCanLockOn = false;
   }
 
   on(event, cb) {
@@ -408,7 +421,7 @@ class LocalGame {
 
   _scheduleHunt() {
     const sanity = this._player.sanity;
-    const interval = Math.max(30000, 120000 - ((100 - sanity) * 800));
+    const interval = Math.max(20000, 60000 - ((100 - sanity) * 400));
     const wt = setTimeout(() => {
       if (this._phase !== PHASE.INVESTIGATION) return;
       this._emit('event:huntWarning', { secsRemaining: 10 });
@@ -427,25 +440,43 @@ class LocalGame {
     this._phase = PHASE.HUNT;
     this._vanDoorLocked = true;
     this._ghost.isVisible = true;
+    this._huntLockedOn = false;
+    this._huntStartTime = Date.now();
+    this._huntCanLockOn = Math.random() < 0.33;
     this._emit('event:huntStart', {});
     this._huntInterval = setInterval(() => this._huntTick(), 100);
     const curRoom = ROOM_MAP[this._player.currentRoomId];
-    const huntDuration = curRoom?.isSafeZone ? 10000 : 20000;
+    const huntDuration = curRoom?.isSafeZone ? 12000 : 60000;
     const t = setTimeout(() => { this._endHunt(); clearInterval(this._huntInterval); }, huntDuration);
     this._timers.push(t);
   }
 
   _huntTick() {
-    if (this._player.isDead || this._player.isHiding) return;
+    if (this._player.isDead) return;
     if (this._player.currentRoomId === 'van') return;
-    const speed = this._computeSpeed() * 0.1;
+
+    // Check lock-on: 33% hunts trigger it if the player isn't hiding after 30s
+    if (this._huntCanLockOn && !this._huntLockedOn && Date.now() - this._huntStartTime > 30000 && !this._player.isHiding) {
+      this._huntLockedOn = true;
+      this._emit('event:lockedOn', {});
+    }
+
+    // When locked on, ghost ignores hiding and beelines directly at full speed
+    if (this._huntLockedOn) {
+      this._moveGhost(this._player.position, this._computeSpeed() * 0.22);
+      this._emit('state:ghost', { position: this._ghost.position, isVisible: true });
+      if (this._atKillRange()) this._killPlayer();
+      return;
+    }
+
+    if (this._player.isHiding) return;
+    const speed = this._computeSpeed() * 0.16;
     const gRoom = this._ghost.currentRoomId, pRoom = this._player.currentRoomId;
     if (gRoom !== pRoom) {
       const path = bfsPath(gRoom, pRoom);
       if (path && path.length > 1) {
         const cur = ROOM_MAP[path[0]], nr = ROOM_MAP[path[1]];
         if (nr && nr.id !== 'van') {
-          // Navigate toward the shared door gap rather than room center
           const target = cur ? this._doorGap(cur, nr) : roomCenter(nr);
           this._moveGhost(target, speed);
           const g = this._ghost.position;
@@ -457,8 +488,7 @@ class LocalGame {
       this._moveGhost(this._player.position, speed);
     }
     this._emit('state:ghost', { position: this._ghost.position, isVisible: true });
-    const g = this._ghost.position, p = this._player.position;
-    if (Math.sqrt((g.x-p.x)**2+(g.z-p.z)**2) < 1.0) this._killPlayer();
+    if (this._atKillRange()) this._killPlayer();
   }
 
   // Returns a point at the door gap between two adjacent rooms, falling back to next room center
@@ -512,8 +542,20 @@ class LocalGame {
     }
   }
 
+  _atKillRange() {
+    const g=this._ghost.position, p=this._player.position;
+    return Math.sqrt((g.x-p.x)**2+(g.z-p.z)**2) < 1.0;
+  }
+
   _killPlayer() {
     if (this._player.isDead) return;
+    if (this._player.heldToolId === 'crucifix') {
+      this._player.heldToolId = null;
+      this._emit('event:crucifixUsed', {});
+      clearInterval(this._huntInterval);
+      this._endHunt();
+      return;
+    }
     this._player.isDead = true;
     this._emit('event:playerDied', { playerId:'local', name: this._player.name });
     if (this._ghostType?.specialAbility === 'permanentSpeedOnDeath') this._speedBonus += this._ghostType.huntBehavior.speedModifier;
@@ -527,6 +569,8 @@ class LocalGame {
     this._phase = PHASE.INVESTIGATION;
     this._vanDoorLocked = false;
     this._ghost.isVisible = false;
+    this._huntLockedOn = false;
+    this._huntCanLockOn = false;
     this._emit('event:huntEnd', {});
     this._emit('state:ghost', { position: this._ghost.position, isVisible: false });
     this._scheduleHunt();
@@ -656,24 +700,33 @@ class RoomManager {
       const addPlane = (w,h,mat,px,py,pz,ry) => { const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),mat); m.position.set(px,py,pz); m.rotation.y=ry; this.scene.add(m); };
       const fl=new THREE.Mesh(new THREE.PlaneGeometry(W,D),fm); fl.rotation.x=-Math.PI/2; fl.position.set(cx,min.y,cz); fl.receiveShadow=true; this.scene.add(fl);
       const ce=new THREE.Mesh(new THREE.PlaneGeometry(W,D),cm); ce.rotation.x=Math.PI/2; ce.position.set(cx,max.y,cz); this.scene.add(ce);
-      const hasDoor=(face)=>{
-        for(const cid of room.connections){ const c=ROOM_MAP[cid]; if(!c) continue; const cb=c.bounds;
-          if(face==='north'&&Math.abs(cb.max.z-min.z)<0.1&&min.x<cb.max.x&&cb.min.x<max.x) return true;
-          if(face==='south'&&Math.abs(cb.min.z-max.z)<0.1&&min.x<cb.max.x&&cb.min.x<max.x) return true;
-          if(face==='west'&&Math.abs(cb.max.x-min.x)<0.1&&min.z<cb.max.z&&cb.min.z<max.z) return true;
-          if(face==='east'&&Math.abs(cb.min.x-max.x)<0.1&&min.z<cb.max.z&&cb.min.z<max.z) return true;
-        } return false;
+      const DW=DOOR_WIDTH,DH=DOOR_HEIGHT;
+      const addWallZ=(wallZ,ry,gaps)=>{
+        if(!gaps.length){addPlane(W,H,wm,cx,cy,wallZ,ry);return;}
+        let cur=min.x;
+        for(const dcx of gaps){
+          const L=dcx-DW/2,R=dcx+DW/2;
+          if(L-cur>0.05)addPlane(L-cur,H,wm,(cur+L)/2,cy,wallZ,ry);
+          if(H-DH>0.05)addPlane(DW,H-DH,wm,dcx,min.y+DH+(H-DH)/2,wallZ,ry);
+          cur=R;
+        }
+        if(max.x-cur>0.05)addPlane(max.x-cur,H,wm,(cur+max.x)/2,cy,wallZ,ry);
       };
-      const addWall=(w,h,hasDoor,px,py,pz,ry)=>{
-        if(!hasDoor){ addPlane(w,h,wm,px,py,pz,ry); return; }
-        const dw=Math.min(DOOR_WIDTH,w-0.4), dh=Math.min(DOOR_HEIGHT,h-0.1), sw=(w-dw)/2, hh=h-dh;
-        if(sw>0.05){ addPlane(sw,h,wm,px-(dw/2+sw/2)*Math.cos(ry),py,pz+(dw/2+sw/2)*Math.sin(ry),ry); addPlane(sw,h,wm,px+(dw/2+sw/2)*Math.cos(ry),py,pz-(dw/2+sw/2)*Math.sin(ry),ry); }
-        if(hh>0.05){ addPlane(dw,hh,wm,px,py+(h-hh)/2,pz,ry); }
+      const addWallX=(wallX,ry,gaps)=>{
+        if(!gaps.length){addPlane(D,H,wm,wallX,cy,cz,ry);return;}
+        let cur=min.z;
+        for(const dcz of gaps){
+          const F=dcz-DW/2,B=dcz+DW/2;
+          if(F-cur>0.05)addPlane(F-cur,H,wm,wallX,cy,(cur+F)/2,ry);
+          if(H-DH>0.05)addPlane(DW,H-DH,wm,wallX,min.y+DH+(H-DH)/2,dcz,ry);
+          cur=B;
+        }
+        if(max.z-cur>0.05)addPlane(max.z-cur,H,wm,wallX,cy,(cur+max.z)/2,ry);
       };
-      addWall(W,H,hasDoor('north'),cx,cy,min.z,0);
-      addWall(W,H,hasDoor('south'),cx,cy,max.z,Math.PI);
-      addWall(D,H,hasDoor('west'),min.x,cy,cz,Math.PI/2);
-      addWall(D,H,hasDoor('east'),max.x,cy,cz,-Math.PI/2);
+      addWallZ(min.z,0,roomDoorGaps(room,'north'));
+      addWallZ(max.z,Math.PI,roomDoorGaps(room,'south'));
+      addWallX(min.x,Math.PI/2,roomDoorGaps(room,'west'));
+      addWallX(max.x,-Math.PI/2,roomDoorGaps(room,'east'));
       // Closet marker
       const cp=room.closetPos;
       const cm2=new THREE.Mesh(new THREE.BoxGeometry(0.8,1.8,0.8),new THREE.MeshBasicMaterial({color:0x334433,wireframe:true}));
@@ -995,6 +1048,64 @@ class HouseDetails {
     // Roofs
     this._box(40,0.3,26,roofM,-1,3.12,0,  0,false); // ground floor
     this._box(16,0.3,20,roofM,-8,9.12,-20,0,false); // top floor
+
+    // ── Garden (north side of house) ─────────────────────────────────────────
+    const hedgeM  = M(0x0a1a06,0.97);
+    const stoneM  = M(0x1a1814,0.9);
+    const flowerM = M(0x1a0a0a,0.8,{emissive:new THREE.Color(0x3a0808),emissiveIntensity:0.4});
+    const gardenGrass = M(0x081206,0.98);
+    // Garden ground
+    flat(44,26,gardenGrass,-2,-0.01,-23);
+    // Stone path from house to garden
+    for(let pz=-12;pz>=-32;pz-=2.2){ this._box(1.2,0.06,1.0,stoneM,-2,0.04,pz,0,false); }
+    // Perimeter hedges
+    this._box(44,1.2,0.4,hedgeM,-2,0.6,-35,0,false); // far north hedge
+    this._box(0.4,1.2,26,hedgeM,-24,-0.01,-23,0,false); // west hedge
+    this._box(0.4,1.2,26,hedgeM,20,-0.01,-23,0,false);  // east hedge
+    // Hedge segments along house front
+    this._box(7,0.8,0.4,hedgeM,-14,0.4,-11,0,false);
+    this._box(7,0.8,0.4,hedgeM, 10,0.4,-11,0,false);
+    // Garden beds (flower beds on each side of path)
+    this._box(6,0.3,4,flowerM,-8,0.15,-18,0,false);
+    this._box(6,0.3,4,flowerM, 4,0.15,-18,0,false);
+    this._box(6,0.3,4,flowerM,-8,0.15,-26,0,false);
+    this._box(6,0.3,4,flowerM, 4,0.15,-26,0,false);
+    // Stone border around each bed
+    for(const[bx,bz] of [[-8,-18],[4,-18],[-8,-26],[4,-26]]){
+      this._box(6.3,0.12,0.15,stoneM,bx,0.06,bz-2.1,0,false);
+      this._box(6.3,0.12,0.15,stoneM,bx,0.06,bz+2.1,0,false);
+      this._box(0.15,0.12,4.3,stoneM,bx-3.2,0.06,bz,0,false);
+      this._box(0.15,0.12,4.3,stoneM,bx+3.2,0.06,bz,0,false);
+    }
+    // Simple tree trunks + canopies
+    const trunkM = M(0x1a0d04,0.95);
+    const canopyM = M(0x071408,0.97,{transparent:true,opacity:0.85});
+    for(const[tx,tz] of [[-16,-20],[12,-20],[-16,-30],[12,-30]]){
+      this._cyl(0.15,0.2,3.5,6,trunkM,tx,1.75,tz);
+      const cn=new THREE.Mesh(new THREE.SphereGeometry(1.8,7,5),canopyM);
+      cn.position.set(tx,4.2,tz); this.scene.add(cn);
+    }
+    // Garden bench (near center)
+    const benchM=M(0x1a0f06,0.9);
+    this._box(1.6,0.08,0.4,benchM,-2,0.7,-22,0,false); // seat
+    this._box(1.6,0.6,0.06,benchM,-2,0.4,-22.22,0,false); // back rest
+    this._box(0.08,0.5,0.4,benchM,-0.75,0.25,-22,0,false); // left leg
+    this._box(0.08,0.5,0.4,benchM, 0.75,0.25,-22,0,false); // right leg
+
+    // ── Balcony off the top floor landing (south face, z=-10) ─────────────────
+    const railM   = M(0x0d0a06,0.7);
+    const balconyM= M(0x1a1208,0.9);
+    // Platform: extends south from z=-10, sitting at y=6 (top floor floor level)
+    this._box(8,0.18,3.5,balconyM,0,6.09,-11.75,0,false);
+    // Railing posts
+    for(let rx=-3.6;rx<=3.6;rx+=1.2){ this._box(0.08,0.9,0.08,railM,rx,6.54,-10.05,0,false); this._box(0.08,0.9,0.08,railM,rx,6.54,-13.45,0,false); }
+    this._box(0.08,0.9,0.08,railM,-4.0,6.54,-11.75,0,false);
+    this._box(0.08,0.9,0.08,railM, 4.0,6.54,-11.75,0,false);
+    // Top rails
+    this._box(8.1,0.06,0.08,railM,0,6.99,-10.05,0,false);
+    this._box(8.1,0.06,0.08,railM,0,6.99,-13.45,0,false);
+    this._box(0.08,0.06,3.5,railM,-4.0,6.99,-11.75,0,false);
+    this._box(0.08,0.06,3.5,railM, 4.0,6.99,-11.75,0,false);
   }
 
   _addTrim(room) {
@@ -1518,23 +1629,6 @@ class PlayerController {
     const DW=DOOR_WIDTH, DH=DOOR_HEIGHT;
     for(const room of ROOMS){
       const {min,max}=room.bounds, t=0.12, walls=[];
-      // Collect sorted door-gap centres along a face axis
-      const dcxs=(face)=>{
-        const out=[];
-        for(const cid of room.connections){ const c=ROOM_MAP[cid]; if(!c) continue; const cb=c.bounds;
-          const xO=min.x<cb.max.x&&cb.min.x<max.x;
-          if(face==='north'&&Math.abs(cb.max.z-min.z)<0.2&&xO){ const x0=Math.max(min.x,cb.min.x),x1=Math.min(max.x,cb.max.x); if(x1>x0)out.push((x0+x1)/2); }
-          if(face==='south'&&Math.abs(cb.min.z-max.z)<0.2&&xO){ const x0=Math.max(min.x,cb.min.x),x1=Math.min(max.x,cb.max.x); if(x1>x0)out.push((x0+x1)/2); }
-        } return out.sort((a,b)=>a-b);
-      };
-      const dczs=(face)=>{
-        const out=[];
-        for(const cid of room.connections){ const c=ROOM_MAP[cid]; if(!c) continue; const cb=c.bounds;
-          const zO=min.z<cb.max.z&&cb.min.z<max.z;
-          if(face==='west'&&Math.abs(cb.max.x-min.x)<0.2&&zO){ const z0=Math.max(min.z,cb.min.z),z1=Math.min(max.z,cb.max.z); if(z1>z0)out.push((z0+z1)/2); }
-          if(face==='east'&&Math.abs(cb.min.x-max.x)<0.2&&zO){ const z0=Math.max(min.z,cb.min.z),z1=Math.min(max.z,cb.max.z); if(z1>z0)out.push((z0+z1)/2); }
-        } return out.sort((a,b)=>a-b);
-      };
       // Build Box3 segments for a Z-axis wall (runs along X)
       const addZ=(zPos,gaps)=>{
         if(!gaps.length){ walls.push(new THREE.Box3(new THREE.Vector3(min.x,min.y,zPos-t),new THREE.Vector3(max.x,max.y,zPos+t))); return; }
@@ -1559,10 +1653,10 @@ class PlayerController {
         }
         if(max.z-cur>0.05) walls.push(new THREE.Box3(new THREE.Vector3(xPos-t,min.y,cur),new THREE.Vector3(xPos+t,max.y,max.z)));
       };
-      addZ(min.z, dcxs('north'));
-      addZ(max.z, dcxs('south'));
-      addX(min.x, dczs('west'));
-      addX(max.x, dczs('east'));
+      addZ(min.z, roomDoorGaps(room,'north'));
+      addZ(max.z, roomDoorGaps(room,'south'));
+      addX(min.x, roomDoorGaps(room,'west'));
+      addX(max.x, roomDoorGaps(room,'east'));
       map.set(room.id, walls);
     }
     return map;
@@ -1596,7 +1690,7 @@ class HUD {
     }
   }
   setInventory(slots, activeIdx) {
-    const NAMES={emf:'EMF',thermometer:'THERM',goggles:'NVG',uv:'UV',notebook:'NOTEBOOK',sensor:'SENSOR',spiritbox:'SPIRIT'};
+    const NAMES={emf:'EMF',thermometer:'THERM',goggles:'NVG',uv:'UV',notebook:'NOTEBOOK',sensor:'SENSOR',spiritbox:'SPIRIT',crucifix:'CRUCIFIX'};
     for(let i=0;i<2;i++){
       const el=document.getElementById(`inv-slot-${i}`); if(!el) continue;
       const toolId=slots[i];
@@ -1903,11 +1997,11 @@ class SpiritBox {
 
 // ── HuntSoundManager ─────────────────────────────────────────────────────────
 class HuntSoundManager {
-  constructor(){ this._ctx=null; this._timer=null; this._active=false; }
-  _ctx(){
-    if(!this._ctx) this._ctx=new(window.AudioContext||window.webkitAudioContext)();
-    if(this._ctx.state==='suspended') this._ctx.resume();
-    return this._ctx;
+  constructor(){ this._audioCtx=null; this._timer=null; this._active=false; }
+  _getCtx(){
+    if(!this._audioCtx) this._audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(this._audioCtx.state==='suspended') this._audioCtx.resume();
+    return this._audioCtx;
   }
   _pulse(ctx,freq,vol,startAt,dur){
     const o=ctx.createOscillator(), g=ctx.createGain();
@@ -1920,13 +2014,115 @@ class HuntSoundManager {
   }
   _beat(){
     if(!this._active) return;
-    const ctx=this._ctx(), now=ctx.currentTime;
+    const ctx=this._getCtx(), now=ctx.currentTime;
     this._pulse(ctx,58,0.55,now,0.13);        // lub
     this._pulse(ctx,48,0.38,now+0.2,0.15);   // dub
     this._timer=setTimeout(()=>this._beat(),850);
   }
   start(){ if(this._active) return; this._active=true; this._beat(); }
   stop(){ this._active=false; clearTimeout(this._timer); this._timer=null; }
+}
+
+// ── Tool 3D Models ────────────────────────────────────────────────────────────
+function buildToolModel(id) {
+  const g = new THREE.Group();
+  const M = (geo, col, opts={}) => {
+    const mat = new THREE.MeshStandardMaterial({
+      color:col, roughness:opts.r??0.8,
+      emissive:opts.e??0, emissiveIntensity:opts.ei??0,
+      transparent:!!(opts.o&&opts.o<1), opacity:opts.o??1
+    });
+    const m = new THREE.Mesh(geo, mat);
+    if (opts.p) m.position.set(...opts.p);
+    if (opts.rx) m.rotation.x = opts.rx;
+    if (opts.ry) m.rotation.y = opts.ry;
+    if (opts.rz) m.rotation.z = opts.rz;
+    g.add(m);
+  };
+  switch(id) {
+    case 'emf': {
+      M(new THREE.BoxGeometry(0.06,0.16,0.04), 0x1a1a1a);
+      // LED row on top
+      for(let i=-1;i<=1;i++) M(new THREE.SphereGeometry(0.005,6,6),0x00ff44,{e:0x00ff44,ei:0.8,p:[i*0.015,0.085,0.021]});
+      // Screen
+      M(new THREE.BoxGeometry(0.04,0.045,0.002),0x00ff44,{e:0x00ff44,ei:0.5,p:[0,0.015,0.021]});
+      // Antenna probe
+      M(new THREE.CylinderGeometry(0.005,0.005,0.09,6),0x333333,{p:[0.022,0.125,0]});
+      break;
+    }
+    case 'thermometer': {
+      // Handle
+      M(new THREE.BoxGeometry(0.045,0.1,0.04),0xff6600);
+      // Head/barrel
+      M(new THREE.BoxGeometry(0.09,0.065,0.085),0xff6600,{p:[0,0.085,0]});
+      // Probe nozzle
+      M(new THREE.CylinderGeometry(0.008,0.01,0.05,8),0xcccccc,{p:[0,0.15,0]});
+      // Green LCD
+      M(new THREE.BoxGeometry(0.055,0.025,0.002),0x44cc44,{e:0x44cc44,ei:0.4,p:[0,0.09,0.043]});
+      break;
+    }
+    case 'goggles': {
+      const frameMat=new THREE.MeshStandardMaterial({color:0x0a0a0a,roughness:0.5});
+      const lensMat=new THREE.MeshStandardMaterial({color:0x7733ff,roughness:0.05,transparent:true,opacity:0.75,emissive:0x3300aa,emissiveIntensity:0.4});
+      for(const ox of [-0.065,0.065]){
+        const fr=new THREE.Mesh(new THREE.TorusGeometry(0.048,0.012,8,20),frameMat); fr.position.x=ox; g.add(fr);
+        const ln=new THREE.Mesh(new THREE.CircleGeometry(0.046,16),lensMat); ln.position.x=ox; g.add(ln);
+      }
+      M(new THREE.BoxGeometry(0.022,0.01,0.012),0x0a0a0a,{r:0.5}); // bridge
+      for(const ox of [-0.13,0.13]) M(new THREE.BoxGeometry(0.07,0.01,0.008),0x0a0a0a,{r:0.5,p:[ox,0,0]});
+      M(new THREE.BoxGeometry(0.18,0.01,0.004),0x1a1a1a,{r:0.7,p:[0,0.055,0]}); // head strap
+      break;
+    }
+    case 'uv': {
+      // Cylindrical flashlight oriented along Z (front = +Z)
+      M(new THREE.CylinderGeometry(0.022,0.022,0.14,12),0x111111,{rx:Math.PI/2});
+      // Slightly wider head at front
+      M(new THREE.CylinderGeometry(0.032,0.022,0.04,12),0x111111,{rx:Math.PI/2,p:[0,0,0.09]});
+      // UV LED disc at front
+      M(new THREE.CircleGeometry(0.022,12),0xaa00ff,{e:0xaa00ff,ei:1.2,p:[0,0,0.112]});
+      // Grip ring on handle
+      M(new THREE.TorusGeometry(0.024,0.004,6,12),0x333333,{rx:Math.PI/2,p:[0,0,-0.02]});
+      break;
+    }
+    case 'notebook': {
+      // Dark leather cover
+      M(new THREE.BoxGeometry(0.13,0.17,0.022),0x2e1808);
+      // Cream pages block
+      M(new THREE.BoxGeometry(0.12,0.165,0.01),0xe8dfc4,{r:0.95,p:[0.004,0,0.016]});
+      // Cover label patch
+      M(new THREE.BoxGeometry(0.075,0.048,0.002),0x8c6a3c,{r:0.7,p:[0,0.02,0.012]});
+      // Spine strip
+      M(new THREE.BoxGeometry(0.01,0.17,0.022),0x1c0d04,{r:0.9,p:[-0.06,0,0]});
+      break;
+    }
+    case 'sensor': {
+      // Flat disc — PIR motion sensor
+      M(new THREE.CylinderGeometry(0.065,0.065,0.028,20),0x1c1c1c);
+      const dome=new THREE.Mesh(new THREE.SphereGeometry(0.024,10,8,0,Math.PI*2,0,Math.PI/2),new THREE.MeshStandardMaterial({color:0xf0ede0,roughness:0.25}));
+      dome.position.y=0.014; g.add(dome);
+      M(new THREE.TorusGeometry(0.028,0.005,8,16),0x555555,{rx:Math.PI/2,p:[0,0.014,0]});
+      M(new THREE.SphereGeometry(0.006,6,6),0x00ff44,{e:0x00ff44,ei:0.9,p:[0.038,0.016,0.038]});
+      break;
+    }
+    case 'spiritbox': {
+      // Walkie-talkie body
+      M(new THREE.BoxGeometry(0.052,0.135,0.028),0x111111);
+      M(new THREE.BoxGeometry(0.042,0.125,0.002),0x2c2c2c,{p:[0,0,0.015]}); // front panel
+      for(let i=0;i<4;i++) M(new THREE.BoxGeometry(0.032,0.003,0.001),0x555555,{p:[0,0.03+i*0.008,0.016]}); // grill
+      M(new THREE.BoxGeometry(0.028,0.022,0.001),0x00bb44,{e:0x00bb44,ei:0.5,p:[0,-0.022,0.016]}); // LCD
+      M(new THREE.BoxGeometry(0.005,0.012,0.022),0x444444,{p:[0.029,0.01,0]}); // side button
+      M(new THREE.CylinderGeometry(0.004,0.004,0.095,6),0x222222,{p:[0.018,0.115,0]}); // antenna
+      break;
+    }
+    case 'crucifix': {
+      const wood=new THREE.MeshStandardMaterial({color:0x4a2f18,roughness:0.95});
+      g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.024,0.19,0.018),wood)));
+      const h=new THREE.Mesh(new THREE.BoxGeometry(0.11,0.024,0.018),wood); h.position.y=0.052; g.add(h);
+      M(new THREE.BoxGeometry(0.005,0.185,0.001),0x5c3a22,{r:1,p:[0.004,0,0.01]}); // grain
+      break;
+    }
+  }
+  return g;
 }
 
 // ── VanToolShelf ──────────────────────────────────────────────────────────────
@@ -1938,6 +2134,7 @@ const TOOL_DEFS = [
   {id:'notebook',   label:'Notebook',     x: 3.8, z:6.5,  color:0xffaa00},
   {id:'sensor',     label:'Motion Sensor',x: 3.8, z:8.0,  color:0xff4400},
   {id:'spiritbox',  label:'Spirit Box',   x: 3.8, z:9.5,  color:0xff00aa},
+  {id:'crucifix',   label:'Crucifix',     x: 3.8, z:11.0, color:0xffcc44},
 ];
 
 class VanToolShelf {
@@ -1951,12 +2148,13 @@ class VanToolShelf {
     for(const def of TOOL_DEFS){
       const shelf=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.05,0.45),shelfMat);
       shelf.position.set(def.x,0.97,def.z); this._scene.add(shelf);
-      const mat=new THREE.MeshStandardMaterial({color:def.color,emissive:def.color,emissiveIntensity:0.4,roughness:0.5});
-      const mesh=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.28,0.16),mat);
-      mesh.position.set(def.x,1.18,def.z); this._scene.add(mesh);
+      const model=buildToolModel(def.id);
+      model.position.set(def.x,1.18,def.z);
+      model.rotation.y=def.x<0 ? Math.PI/2 : -Math.PI/2;
+      this._scene.add(model);
       const light=new THREE.PointLight(def.color,0.5,1.8);
       light.position.set(def.x,1.35,def.z); this._scene.add(light);
-      this._pickups.push({id:def.id,label:def.label,mesh,light,available:true,pos:new THREE.Vector3(def.x,1.18,def.z)});
+      this._pickups.push({id:def.id,label:def.label,mesh:model,light,available:true,pos:new THREE.Vector3(def.x,1.18,def.z)});
     }
   }
   getNearby(playerPos,range=1.6){ return this._pickups.find(p=>p.available&&playerPos.distanceTo(p.pos)<range)||null; }
@@ -2044,6 +2242,13 @@ class ToolManager {
   onSpiritBoxResponse(d){ this.tools.spiritbox.onResponse(d); }
   onSensorPlaced(d){ this.tools.sensor.onSensorPlaced(d); }
   onNotebookPlaced(d){ this.tools.notebook.onNotebookPlaced(d); }
+  consumeItem(id){
+    const idx=this._inventory.indexOf(id); if(idx===-1) return;
+    this.tools[id]?.onUnequip?.();
+    this._inventory[idx]=null;
+    if(this._active===id){ this._active=null; this.game.sendToolHeld(null); }
+    this.hud.setInventory(this._inventory,this._activeSlot);
+  }
 }
 
 // ── LAN Multiplayer Client ────────────────────────────────────────────────────
@@ -2231,6 +2436,8 @@ game.on('event:huntWarning', d => {
   setTimeout(() => hud.showHuntWarning(false), (d.secsRemaining - 0.5) * 1000);
 });
 game.on('event:huntStart', () => { hud.showHuntWarning(true, '⚠ HUNT IN PROGRESS ⚠'); journal.hide(); tablet.hide(); huntSound.start(); });
+game.on('event:lockedOn',  () => { hud.showHuntWarning(true, '⚠ IT HAS FOUND YOU ⚠'); });
+game.on('event:crucifixUsed', () => { toolMgr.consumeItem('crucifix'); hud.showEvidencePopup('The crucifix repels the ghost!'); });
 game.on('event:huntEnd',   () => { hud.showHuntWarning(false); ghost.setVisible(false); game.sendHiding(false); player.exitCloset(); huntSound.stop(); });
 game.on('event:playerDied', d => {
   player.isDead = true;
@@ -2243,6 +2450,13 @@ game.on('game:incorrect', () => hud.showEvidencePopup('Incorrect — keep invest
 document.getElementById('spectate-btn').addEventListener('click', () => {
   document.getElementById('death-screen').style.display = 'none';
   player.becomeSpectator();
+});
+
+// Shift key: re-lock pointer
+document.addEventListener('keydown', e => {
+  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && gameStarted && !player.controls.isLocked && !player.isDead && !player.isHiding) {
+    player.lock();
+  }
 });
 
 // E key: fuse box, closet hiding
