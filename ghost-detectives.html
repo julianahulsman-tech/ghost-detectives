@@ -2026,6 +2026,7 @@ class HuntSoundManager {
 // ── Tool 3D Models ────────────────────────────────────────────────────────────
 function buildToolModel(id) {
   const g = new THREE.Group();
+  // All models lie flat: X = along shelf (long axis), Y = up (thin), Z = shelf depth
   const M = (geo, col, opts={}) => {
     const mat = new THREE.MeshStandardMaterial({
       color:col, roughness:opts.r??0.8,
@@ -2033,70 +2034,61 @@ function buildToolModel(id) {
       transparent:!!(opts.o&&opts.o<1), opacity:opts.o??1
     });
     const m = new THREE.Mesh(geo, mat);
-    if (opts.p) m.position.set(...opts.p);
-    if (opts.rx) m.rotation.x = opts.rx;
-    if (opts.ry) m.rotation.y = opts.ry;
-    if (opts.rz) m.rotation.z = opts.rz;
+    if(opts.p) m.position.set(...opts.p);
+    if(opts.rx) m.rotation.x=opts.rx;
+    if(opts.ry) m.rotation.y=opts.ry;
+    if(opts.rz) m.rotation.z=opts.rz;
     g.add(m);
   };
   switch(id) {
     case 'emf': {
-      M(new THREE.BoxGeometry(0.06,0.16,0.04), 0x1a1a1a);
-      // LED row on top
-      for(let i=-1;i<=1;i++) M(new THREE.SphereGeometry(0.005,6,6),0x00ff44,{e:0x00ff44,ei:0.8,p:[i*0.015,0.085,0.021]});
-      // Screen
-      M(new THREE.BoxGeometry(0.04,0.045,0.002),0x00ff44,{e:0x00ff44,ei:0.5,p:[0,0.015,0.021]});
-      // Antenna probe
-      M(new THREE.CylinderGeometry(0.005,0.005,0.09,6),0x333333,{p:[0.022,0.125,0]});
+      // Lying flat, long axis along X
+      M(new THREE.BoxGeometry(0.16,0.04,0.06),0x1a1a1a);
+      M(new THREE.BoxGeometry(0.07,0.002,0.04),0x00ff44,{e:0x00ff44,ei:0.5,p:[0.01,0.021,0]}); // screen on top
+      for(let i=0;i<3;i++) M(new THREE.SphereGeometry(0.005,6,6),0x00ff44,{e:0x00ff44,ei:0.8,p:[0.05+i*0.013,0.022,0.022]}); // LEDs
+      M(new THREE.CylinderGeometry(0.005,0.005,0.08,6),0x333333,{p:[0.07,0.06,0.02]}); // antenna standing up
       break;
     }
     case 'thermometer': {
-      // Handle
-      M(new THREE.BoxGeometry(0.045,0.1,0.04),0xff6600);
-      // Head/barrel
-      M(new THREE.BoxGeometry(0.09,0.065,0.085),0xff6600,{p:[0,0.085,0]});
-      // Probe nozzle
-      M(new THREE.CylinderGeometry(0.008,0.01,0.05,8),0xcccccc,{p:[0,0.15,0]});
-      // Green LCD
-      M(new THREE.BoxGeometry(0.055,0.025,0.002),0x44cc44,{e:0x44cc44,ei:0.4,p:[0,0.09,0.043]});
+      // Handle along X, barrel at +X end
+      M(new THREE.BoxGeometry(0.1,0.035,0.04),0xff6600,{p:[-0.025,0,0]});
+      M(new THREE.BoxGeometry(0.065,0.035,0.085),0xff6600,{p:[0.065,0,0]}); // barrel (wider in Z)
+      M(new THREE.CylinderGeometry(0.008,0.01,0.05,8),0xcccccc,{rz:Math.PI/2,p:[0.135,0,0]}); // probe at end
+      M(new THREE.BoxGeometry(0.05,0.002,0.04),0x44cc44,{e:0x44cc44,ei:0.4,p:[0.065,0.018,0]}); // LCD on top
       break;
     }
     case 'goggles': {
       const frameMat=new THREE.MeshStandardMaterial({color:0x0a0a0a,roughness:0.5});
       const lensMat=new THREE.MeshStandardMaterial({color:0x7733ff,roughness:0.05,transparent:true,opacity:0.75,emissive:0x3300aa,emissiveIntensity:0.4});
+      // Lenses side-by-side along X, lying flat (torus in XZ plane)
       for(const ox of [-0.065,0.065]){
-        const fr=new THREE.Mesh(new THREE.TorusGeometry(0.048,0.012,8,20),frameMat); fr.position.x=ox; g.add(fr);
-        const ln=new THREE.Mesh(new THREE.CircleGeometry(0.046,16),lensMat); ln.position.x=ox; g.add(ln);
+        const fr=new THREE.Mesh(new THREE.TorusGeometry(0.048,0.012,8,20),frameMat);
+        fr.rotation.x=Math.PI/2; fr.position.x=ox; g.add(fr);
+        const ln=new THREE.Mesh(new THREE.CircleGeometry(0.046,16),lensMat);
+        ln.rotation.x=-Math.PI/2; ln.position.set(ox,0.001,0); g.add(ln); // face up
       }
-      M(new THREE.BoxGeometry(0.022,0.01,0.012),0x0a0a0a,{r:0.5}); // bridge
-      for(const ox of [-0.13,0.13]) M(new THREE.BoxGeometry(0.07,0.01,0.008),0x0a0a0a,{r:0.5,p:[ox,0,0]});
-      M(new THREE.BoxGeometry(0.18,0.01,0.004),0x1a1a1a,{r:0.7,p:[0,0.055,0]}); // head strap
+      M(new THREE.BoxGeometry(0.022,0.008,0.012),0x0a0a0a,{r:0.5}); // bridge
+      for(const ox of [-0.13,0.13]) M(new THREE.BoxGeometry(0.08,0.008,0.01),0x0a0a0a,{r:0.5,p:[ox,0,0]}); // arms
       break;
     }
     case 'uv': {
-      // Cylindrical flashlight oriented along Z (front = +Z)
-      M(new THREE.CylinderGeometry(0.022,0.022,0.14,12),0x111111,{rx:Math.PI/2});
-      // Slightly wider head at front
-      M(new THREE.CylinderGeometry(0.032,0.022,0.04,12),0x111111,{rx:Math.PI/2,p:[0,0,0.09]});
-      // UV LED disc at front
-      M(new THREE.CircleGeometry(0.022,12),0xaa00ff,{e:0xaa00ff,ei:1.2,p:[0,0,0.112]});
-      // Grip ring on handle
-      M(new THREE.TorusGeometry(0.024,0.004,6,12),0x333333,{rx:Math.PI/2,p:[0,0,-0.02]});
+      // Cylindrical flashlight lying along X
+      M(new THREE.CylinderGeometry(0.022,0.022,0.14,12),0x111111,{rz:Math.PI/2});
+      M(new THREE.CylinderGeometry(0.032,0.022,0.04,12),0x111111,{rz:Math.PI/2,p:[0.09,0,0]}); // wider head at +X end
+      M(new THREE.CircleGeometry(0.022,12),0xaa00ff,{e:0xaa00ff,ei:1.2,ry:Math.PI/2,p:[0.112,0,0]}); // UV LED face
+      M(new THREE.TorusGeometry(0.024,0.004,6,12),0x333333,{rx:Math.PI/2,p:[-0.02,0,0]}); // grip ring
       break;
     }
     case 'notebook': {
-      // Dark leather cover
-      M(new THREE.BoxGeometry(0.13,0.17,0.022),0x2e1808);
-      // Cream pages block
-      M(new THREE.BoxGeometry(0.12,0.165,0.01),0xe8dfc4,{r:0.95,p:[0.004,0,0.016]});
-      // Cover label patch
-      M(new THREE.BoxGeometry(0.075,0.048,0.002),0x8c6a3c,{r:0.7,p:[0,0.02,0.012]});
-      // Spine strip
-      M(new THREE.BoxGeometry(0.01,0.17,0.022),0x1c0d04,{r:0.9,p:[-0.06,0,0]});
+      // Flat closed book, long axis along X, cover face up
+      M(new THREE.BoxGeometry(0.18,0.022,0.14),0x2e1808); // cover
+      M(new THREE.BoxGeometry(0.17,0.01,0.13),0xe8dfc4,{r:0.95,p:[0,0.016,0]}); // pages on top
+      M(new THREE.BoxGeometry(0.09,0.002,0.065),0x8c6a3c,{r:0.7,p:[0.02,0.012,0]}); // label patch
+      M(new THREE.BoxGeometry(0.01,0.022,0.14),0x1c0d04,{r:0.9,p:[-0.085,0,0]}); // spine at -X end
       break;
     }
     case 'sensor': {
-      // Flat disc — PIR motion sensor
+      // PIR disc — naturally flat, no changes needed
       M(new THREE.CylinderGeometry(0.065,0.065,0.028,20),0x1c1c1c);
       const dome=new THREE.Mesh(new THREE.SphereGeometry(0.024,10,8,0,Math.PI*2,0,Math.PI/2),new THREE.MeshStandardMaterial({color:0xf0ede0,roughness:0.25}));
       dome.position.y=0.014; g.add(dome);
@@ -2105,20 +2097,22 @@ function buildToolModel(id) {
       break;
     }
     case 'spiritbox': {
-      // Walkie-talkie body
-      M(new THREE.BoxGeometry(0.052,0.135,0.028),0x111111);
-      M(new THREE.BoxGeometry(0.042,0.125,0.002),0x2c2c2c,{p:[0,0,0.015]}); // front panel
-      for(let i=0;i<4;i++) M(new THREE.BoxGeometry(0.032,0.003,0.001),0x555555,{p:[0,0.03+i*0.008,0.016]}); // grill
-      M(new THREE.BoxGeometry(0.028,0.022,0.001),0x00bb44,{e:0x00bb44,ei:0.5,p:[0,-0.022,0.016]}); // LCD
-      M(new THREE.BoxGeometry(0.005,0.012,0.022),0x444444,{p:[0.029,0.01,0]}); // side button
-      M(new THREE.CylinderGeometry(0.004,0.004,0.095,6),0x222222,{p:[0.018,0.115,0]}); // antenna
+      // Walkie-talkie lying on its back, long axis along X, front panel faces up
+      M(new THREE.BoxGeometry(0.135,0.028,0.052),0x111111); // body
+      M(new THREE.BoxGeometry(0.125,0.002,0.042),0x2c2c2c,{p:[0,0.015,0]}); // front panel on top
+      for(let i=0;i<4;i++) M(new THREE.BoxGeometry(0.003,0.001,0.032),0x555555,{p:[-0.04+i*0.012,0.016,0]}); // speaker grill
+      M(new THREE.BoxGeometry(0.022,0.001,0.028),0x00bb44,{e:0x00bb44,ei:0.5,p:[0.04,0.016,0]}); // LCD
+      M(new THREE.BoxGeometry(0.012,0.022,0.005),0x444444,{p:[0,0,0.029]}); // side button
+      M(new THREE.CylinderGeometry(0.004,0.004,0.09,6),0x222222,{p:[0.065,0.065,-0.022]}); // antenna standing up
       break;
     }
     case 'crucifix': {
+      // Cross lying flat in XZ plane — long arm along X, cross arm along Z
       const wood=new THREE.MeshStandardMaterial({color:0x4a2f18,roughness:0.95});
-      g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.024,0.19,0.018),wood)));
-      const h=new THREE.Mesh(new THREE.BoxGeometry(0.11,0.024,0.018),wood); h.position.y=0.052; g.add(h);
-      M(new THREE.BoxGeometry(0.005,0.185,0.001),0x5c3a22,{r:1,p:[0.004,0,0.01]}); // grain
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(0.19,0.018,0.024),wood)); // long arm along X
+      const h=new THREE.Mesh(new THREE.BoxGeometry(0.024,0.018,0.11),wood); // cross arm along Z
+      h.position.x=0.04; g.add(h); // at upper third of long arm
+      M(new THREE.BoxGeometry(0.185,0.001,0.006),0x5c3a22,{r:1,p:[0,0.01,0]}); // wood grain on top
       break;
     }
   }
@@ -2186,15 +2180,15 @@ class VanToolShelf {
       const cx    = sign * 4.90 - sign * DEPTH/2;  // same cx as above
 
       const model = buildToolModel(def.id);
-      model.position.set(cx, SHELF_Y+0.16, def.z);
+      model.position.set(cx, SHELF_Y+0.03, def.z);
       model.rotation.y = sign < 0 ? Math.PI/2 : -Math.PI/2;
       this._scene.add(model);
 
       const light = new THREE.PointLight(def.color, 0.5, 1.8);
-      light.position.set(cx, SHELF_Y+0.60, def.z); this._scene.add(light);
+      light.position.set(cx, SHELF_Y+0.45, def.z); this._scene.add(light);
 
       this._pickups.push({id:def.id, label:def.label, mesh:model, light, available:true,
-        pos:new THREE.Vector3(cx, SHELF_Y+0.16, def.z)});
+        pos:new THREE.Vector3(cx, SHELF_Y+0.03, def.z)});
     }
   }
   getNearby(playerPos,range=1.6){ return this._pickups.find(p=>p.available&&playerPos.distanceTo(p.pos)<range)||null; }
