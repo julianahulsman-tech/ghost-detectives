@@ -727,10 +727,31 @@ class RoomManager {
       addWallZ(max.z,Math.PI,roomDoorGaps(room,'south'));
       addWallX(min.x,Math.PI/2,roomDoorGaps(room,'west'));
       addWallX(max.x,-Math.PI/2,roomDoorGaps(room,'east'));
-      // Closet marker
+      // Closet wardrobe
       const cp=room.closetPos;
-      const cm2=new THREE.Mesh(new THREE.BoxGeometry(0.8,1.8,0.8),new THREE.MeshBasicMaterial({color:0x334433,wireframe:true}));
-      cm2.position.set(cp.x,cp.y-0.1,cp.z); this.scene.add(cm2);
+      const ang=Math.atan2(cp.x-cx, cp.z-cz);
+      const cWood =new THREE.MeshStandardMaterial({color:0x975912,roughness:0.88});
+      const cDark =new THREE.MeshStandardMaterial({color:0x3a1e06,roughness:0.95});
+      const cBrass=new THREE.MeshStandardMaterial({color:0x8B6914,roughness:0.3,metalness:0.75});
+      const CW=1.0,CH=2.1,CD=0.5;
+      const cg=new THREE.Group();
+      const bm=(w,h,d,mat,lx,ly,lz)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(lx,ly,lz);cg.add(m);};
+      bm(CW,   0.04, CD,   cDark, 0,  CH/2-0.02, 0);     // top board
+      bm(CW,   0.04, CD,   cDark, 0, -CH/2+0.02, 0);     // bottom board
+      bm(0.04, CH,   CD,   cDark, -CW/2+0.02, 0, 0);     // left side
+      bm(0.04, CH,   CD,   cDark,  CW/2-0.02, 0, 0);     // right side
+      bm(CW,   CH,   0.04, cDark, 0, 0, CD/2-0.02);      // back panel
+      bm(CW/2-0.04, CH-0.06, 0.04, cWood, -CW/4, 0.01, -CD/2+0.02); // left door
+      bm(CW/2-0.04, CH-0.06, 0.04, cWood,  CW/4, 0.01, -CD/2+0.02); // right door
+      bm(0.022, CH, 0.04, cDark, 0, 0, -CD/2+0.02);      // center divider
+      [[-CW/4+0.1,0,-CD/2+0.06],[CW/4-0.1,0,-CD/2+0.06]].forEach(([lx,ly,lz])=>{
+        const h=new THREE.Mesh(new THREE.SphereGeometry(0.018,8,6),cBrass);h.position.set(lx,ly,lz);cg.add(h);
+      });
+      bm(CW+0.06, 0.07, CD+0.06, cDark, 0,  CH/2+0.035, 0); // crown molding
+      bm(CW+0.04, 0.06, CD+0.02, cDark, 0, -CH/2+0.03,  0); // baseboard
+      cg.position.set(cp.x, min.y+CH/2, cp.z);
+      cg.rotation.y=ang;
+      this.scene.add(cg);
     }
   }
   updateCurrentRoom(x,y,z) { const r=findRoomAt(x,y,z); if(r) this._currentRoomId=r.id; return this._currentRoomId; }
@@ -852,13 +873,13 @@ class HouseDetails {
     // Wood plank floor using canvas texture
     const floorMesh=new THREE.Mesh(new THREE.PlaneGeometry(W,D),
       new THREE.MeshStandardMaterial({map:this.TEX.floor, roughness:0.95}));
-    floorMesh.position.set(cx,min.y+0.01,cz); floorMesh.rotation.x=-Math.PI/2;
+    floorMesh.position.set(cx,min.y,cz); floorMesh.rotation.x=-Math.PI/2;
     floorMesh.receiveShadow=true; this.scene.add(floorMesh);
 
     // --- Horizontal plank battens on side walls (wood-paneling look) ---
     for(let y=0.38; y<=H-0.15; y+=0.38){
-      this._box(D,0.045,0.05, walnutM, min.x+0.06, min.y+y, cz, 0,false);
-      this._box(D,0.045,0.05, walnutM, max.x-0.06, min.y+y, cz, 0,false);
+      this._box(0.05,0.045,D, walnutM, min.x+0.06, min.y+y, cz, 0,false);
+      this._box(0.05,0.045,D, walnutM, max.x-0.06, min.y+y, cz, 0,false);
     }
     // Ceiling planks running along length
     for(let z=min.z+0.45; z<max.z; z+=0.85){
@@ -1661,8 +1682,8 @@ class PlayerController {
     }
     return map;
   }
-  enterCloset(room) { this.isHiding=true; const cp=room.closetPos; this.camera.position.set(cp.x,cp.y,cp.z); this.controls.unlock(); }
-  exitCloset() { this.isHiding=false; this.controls.lock(); }
+  enterCloset(room) { this.isHiding=true; const cp=room.closetPos; this.camera.position.set(cp.x,cp.y,cp.z); }
+  exitCloset() { this.isHiding=false; }
   becomeSpectator() { this.isDead=true; }
 }
 
@@ -2080,11 +2101,38 @@ function buildToolModel(id) {
       break;
     }
     case 'notebook': {
-      // Flat closed book, long axis along X, cover face up
-      M(new THREE.BoxGeometry(0.18,0.022,0.14),0x2e1808); // cover
-      M(new THREE.BoxGeometry(0.17,0.01,0.13),0xe8dfc4,{r:0.95,p:[0,0.016,0]}); // pages on top
-      M(new THREE.BoxGeometry(0.09,0.002,0.065),0x8c6a3c,{r:0.7,p:[0.02,0.012,0]}); // label patch
-      M(new THREE.BoxGeometry(0.01,0.022,0.14),0x1c0d04,{r:0.9,p:[-0.085,0,0]}); // spine at -X end
+      // Canvas "Notes" label on black cover
+      const nc = document.createElement('canvas');
+      nc.width = 512; nc.height = 256;
+      const nctx = nc.getContext('2d');
+      nctx.fillStyle = '#111111';
+      nctx.fillRect(0,0,512,256);
+      nctx.fillStyle = '#f0f0f0';
+      nctx.font = 'bold italic 64px Georgia, serif';
+      nctx.textAlign = 'center';
+      nctx.textBaseline = 'middle';
+      nctx.fillText('Notes', 256, 128);
+
+      // Black cover — thicker
+      M(new THREE.BoxGeometry(0.18,0.045,0.14), 0x111111, {r:0.85});
+
+      // "Notes" label plane on top face
+      const lm = new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(nc), roughness:0.85});
+      const lp = new THREE.Mesh(new THREE.PlaneGeometry(0.15,0.11), lm);
+      lp.rotation.x = -Math.PI/2;
+      lp.position.y = 0.0226;
+      g.add(lp);
+
+      // Spine strip at -X edge
+      M(new THREE.BoxGeometry(0.014,0.045,0.14), 0x0a0a0a, {r:0.9, p:[-0.087,0,0]});
+
+      // Page block (cream — shows as side edge)
+      M(new THREE.BoxGeometry(0.162,0.037,0.136), 0xf0ead8, {r:0.95});
+
+      // Page-edge strips at +X face (open side of book)
+      for(let i=0;i<5;i++)
+        M(new THREE.BoxGeometry(0.003,0.005,0.136), i%2===0?0xe0d8c4:0xfff8f0, {r:1, p:[0.087,-0.014+i*0.007,0]});
+
       break;
     }
     case 'sensor': {

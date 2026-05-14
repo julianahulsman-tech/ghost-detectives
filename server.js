@@ -8,15 +8,33 @@ import os from 'os';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 
-// Serve HTML client
+const DIST = path.join(__dirname, 'dist');
+const MIME = {
+  '.html': 'text/html',
+  '.js':   'application/javascript',
+  '.css':  'text/css',
+  '.png':  'image/png',
+  '.jpg':  'image/jpeg',
+  '.svg':  'image/svg+xml',
+  '.ico':  'image/x-icon',
+  '.woff2':'font/woff2',
+};
+
 const server = http.createServer((req, res) => {
-  if (req.url === '/') {
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(fs.readFileSync(path.join(__dirname, 'ghost-detectives.html')));
-  } else if (req.url === '/lan') {
+  if (req.url === '/lan') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ lan: true }));
-  } else {
+    return;
+  }
+  // Map / → dist/ghost-detectives.html
+  let filePath = req.url === '/' ? '/ghost-detectives.html' : req.url;
+  filePath = path.join(DIST, filePath.split('?')[0]);
+  try {
+    const data = fs.readFileSync(filePath);
+    const ext  = path.extname(filePath);
+    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    res.end(data);
+  } catch {
     res.writeHead(404);
     res.end('Not found');
   }
