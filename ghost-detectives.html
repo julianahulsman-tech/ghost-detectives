@@ -502,7 +502,7 @@ class LocalGame {
       if (this._phase === PHASE.ENDED) return;
       const inGhostRoom = this._player.currentRoomId === this._ghostRoomId;
       const temp = inGhostRoom && this._evidence.freezingTempsAvailable
-        ? parseFloat((-10 + Math.random() * 15).toFixed(1))
+        ? parseFloat((-3 - Math.random() * 12).toFixed(1))
         : parseFloat((15 + Math.random() * 5).toFixed(1));
       this._emit('evidence:temperature', { temp, roomId: this._player.currentRoomId });
     }, 2000);
