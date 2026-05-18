@@ -960,6 +960,22 @@ class HouseDetails {
     m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; this.scene.add(m); return m;
   }
 
+  toggleVanDoors() {
+    if (!this._vanDoors) return;
+    this._vanDoors.open = !this._vanDoors.open;
+    this._vanDoors.dir  = this._vanDoors.open ? 1 : -1;
+  }
+  updateDoors(dt) {
+    if (!this._vanDoors || this._vanDoors.dir === 0) return;
+    const vd = this._vanDoors;
+    vd.t = Math.max(0, Math.min(1, vd.t + dt * vd.dir * 2.0));
+    const e = vd.t < 0.5 ? 2*vd.t*vd.t : 1-Math.pow(-2*vd.t+2,2)/2; // ease in-out
+    const angle = e * Math.PI * 0.5;
+    vd.left.rotation.y  = -angle;
+    vd.right.rotation.y =  angle;
+    if (vd.t <= 0 || vd.t >= 1) vd.dir = 0;
+  }
+
   build() {
     for(const room of ROOMS) {
       if(room.id==='van') { this._furnishVan(room); continue; }
@@ -1025,22 +1041,38 @@ class HouseDetails {
     this._box(0.06,H,0.06, walnutM, min.x+0.06, min.y+H/2, max.z-0.06, 0,false);
     this._box(0.06,H,0.06, walnutM, max.x-0.06, min.y+H/2, max.z-0.06, 0,false);
 
-    // --- Rear double doors (z = min.z, opens toward foyer) ---
-    this._box(W/2-0.09,H-0.09,0.08, doorM, cx-W/4, min.y+H/2, min.z+0.05, 0,false); // left panel
-    this._box(W/2-0.09,H-0.09,0.08, doorM, cx+W/4, min.y+H/2, min.z+0.05, 0,false); // right panel
-    // Horizontal rails on each door
-    for(const dxSign of [-1,1]){
-      const dx=cx+dxSign*W/4;
-      this._box(W/2-0.14,0.07,0.07, walnutM, dx, min.y+0.28,   min.z+0.1, 0,false);
-      this._box(W/2-0.14,0.07,0.07, walnutM, dx, min.y+H/2,    min.z+0.1, 0,false);
-      this._box(W/2-0.14,0.07,0.07, walnutM, dx, min.y+H-0.28, min.z+0.1, 0,false);
-    }
-    // Centre divider + top rail
-    this._box(0.09,H,0.09,    walnutM, cx,       min.y+H/2, min.z+0.07, 0,false);
-    this._box(W,   0.09,0.09, walnutM, cx,       max.y-0.05,min.z+0.07, 0,false);
-    // Brass handles
-    this._box(0.07,0.24,0.08, brassM, cx-0.22, min.y+H/2, min.z+0.16, 0,false);
-    this._box(0.07,0.24,0.08, brassM, cx+0.22, min.y+H/2, min.z+0.16, 0,false);
+    // --- Rear double doors (animated pivot groups, open toward foyer with E) ---
+    // Pivot hinges at outer edges of each door; doors swing outward (-z) on open
+    const addChild = (grp, w, h, d, mat, lx, ly, lz) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+      m.position.set(lx, ly, lz); grp.add(m);
+    };
+    const halfPanW = W/2 - 0.09; // 4.91 — each panel width
+    const panelOffX = halfPanW / 2; // 2.455 — local x of panel centre from hinge
+
+    const leftPivot = new THREE.Group();
+    leftPivot.position.set(min.x + 0.05, min.y, min.z + 0.05);
+    addChild(leftPivot, halfPanW, H-0.09, 0.08, doorM, panelOffX, H/2, 0);
+    addChild(leftPivot, halfPanW-0.05, 0.07, 0.07, walnutM, panelOffX, 0.28, 0.05);
+    addChild(leftPivot, halfPanW-0.05, 0.07, 0.07, walnutM, panelOffX, H/2, 0.05);
+    addChild(leftPivot, halfPanW-0.05, 0.07, 0.07, walnutM, panelOffX, H-0.28, 0.05);
+    addChild(leftPivot, 0.07, 0.24, 0.08, brassM, halfPanW-0.22, H/2, 0.11);
+    this.scene.add(leftPivot);
+
+    const rightPivot = new THREE.Group();
+    rightPivot.position.set(max.x - 0.05, min.y, min.z + 0.05);
+    addChild(rightPivot, halfPanW, H-0.09, 0.08, doorM, -panelOffX, H/2, 0);
+    addChild(rightPivot, halfPanW-0.05, 0.07, 0.07, walnutM, -panelOffX, 0.28, 0.05);
+    addChild(rightPivot, halfPanW-0.05, 0.07, 0.07, walnutM, -panelOffX, H/2, 0.05);
+    addChild(rightPivot, halfPanW-0.05, 0.07, 0.07, walnutM, -panelOffX, H-0.28, 0.05);
+    addChild(rightPivot, 0.07, 0.24, 0.08, brassM, -(halfPanW-0.22), H/2, 0.11);
+    this.scene.add(rightPivot);
+
+    this._vanDoors = { left: leftPivot, right: rightPivot, open: false, t: 0, dir: 0 };
+
+    // Static frame: centre post + top bar
+    this._box(0.09,H,0.09, walnutM, cx, min.y+H/2, min.z+0.07, 0,false);
+    this._box(W,0.09,0.09, walnutM, cx, max.y-0.05, min.z+0.07, 0,false);
 
     // --- Cab partition pass-through window ---
     this._box(1.5,0.62,0.07, M(0x1c2a1c,0.3), cx, min.y+H-0.82, max.z-0.05, 0,false);
@@ -1370,19 +1402,35 @@ class HouseDetails {
   _addStairs() {
     const SM=this.MAT.stair, RM=this.MAT.metal;
     const RISE=3/8, RUN=6/8, STEPS=8;
-    for(let i=0;i<STEPS;i++){const h=RISE*(i+1);this._box(4,h,RUN,SM,-2,h/2,-4-RUN/2-i*RUN);}
-    const rLen=Math.sqrt(45), dir=new THREE.Vector3(0,3,-6).normalize();
+    const treadM = new THREE.MeshStandardMaterial({color:0x251808,roughness:0.85}); // lighter tread face
+
+    // UP stairs (x centre = -2): each step is RISE tall, ascending toward -z
+    for(let i=0;i<STEPS;i++){
+      this._box(4, RISE, RUN, SM, -2, RISE*i + RISE/2, -4 - i*RUN - RUN/2);
+      // Tread highlight (thin brighter slab on top face)
+      this._box(4, 0.03, RUN, treadM, -2, RISE*(i+1) - 0.015, -4 - i*RUN - RUN/2, 0, false);
+    }
+    // UP railing: runs from (−0.2, 0, −4) to (−0.2, 3, −10)
+    const rLen=Math.sqrt(45), dirUp=new THREE.Vector3(0,3,-6).normalize();
     const r1=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,rLen,6),RM);
-    r1.position.set(-.2,1.5,-7); r1.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+    r1.position.set(-0.2,1.5,-7); r1.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dirUp);
     r1.castShadow=true; this.scene.add(r1);
-    this._cyl(.04,.04,1,6,RM,-.2,.5,-4.5);
-    this._cyl(.04,.04,1,6,RM,-.2,2.5,-9.5);
-    for(let i=0;i<STEPS;i++){const h=RISE*(i+1);this._box(4,h,RUN,SM,2,h/2,-4-RUN/2-i*RUN);}
+    this._cyl(.04,.04,1,6,RM,-0.2,.5,-4.5);   // bottom newel
+    this._cyl(.04,.04,1,6,RM,-0.2,2.5,-9.5);  // top newel
+
+    // DOWN stairs (x centre = +2): individual steps descending — high at foyer, low at back
+    for(let i=0;i<STEPS;i++){
+      const stepY = (STEPS-1-i)*RISE + RISE/2;
+      this._box(4, RISE, RUN, SM, 2, stepY, -4 - i*RUN - RUN/2);
+      this._box(4, 0.03, RUN, treadM, 2, stepY + RISE/2 - 0.015, -4 - i*RUN - RUN/2, 0, false);
+    }
+    // DOWN railing: runs from (+0.2, 3, −4) down to (+0.2, 0, −10)
+    const dirDown=new THREE.Vector3(0,-3,-6).normalize();
     const r2=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,rLen,6),RM);
-    r2.position.set(.2,1.5,-7); r2.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);
+    r2.position.set(0.2,1.5,-7); r2.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dirDown);
     r2.castShadow=true; this.scene.add(r2);
-    this._cyl(.04,.04,1,6,RM,.2,.5,-4.5);
-    this._cyl(.04,.04,1,6,RM,.2,2.5,-9.5);
+    this._cyl(.04,.04,1,6,RM,0.2,2.5,-4.5);   // top newel near foyer
+    this._cyl(.04,.04,1,6,RM,0.2,.5,-9.5);    // bottom newel at back
   }
 
   _addFurniture(room) {
@@ -1669,33 +1717,75 @@ class GhostRenderer {
     this._group = new THREE.Group();
     this._group.visible = false;
     scene.add(this._group);
-    const ghostM = new THREE.MeshStandardMaterial({color:0xbbddff,emissive:new THREE.Color(0x223355),emissiveIntensity:1.4,transparent:true,opacity:0.7,side:THREE.DoubleSide,depthWrite:false});
-    const eyeM  = new THREE.MeshBasicMaterial({color:0xff1100});
-    const darkM = new THREE.MeshBasicMaterial({color:0x000000});
-    const glowM = new THREE.MeshBasicMaterial({color:0x88aaff,transparent:true,opacity:0.15});
-    // Head
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.3,10,8), ghostM);
-    head.position.y=1.72; this._group.add(head);
-    // Robe body — cone flipped so wide end is at top
-    const robe = new THREE.Mesh(new THREE.ConeGeometry(0.44,1.25,10), ghostM);
-    robe.rotation.x=Math.PI; robe.position.y=1.0; this._group.add(robe);
-    // Wispy tail
-    const wisp = new THREE.Mesh(new THREE.ConeGeometry(0.18,0.55,8), ghostM);
-    wisp.position.y=0.3; this._group.add(wisp);
-    // Glowing red eyes
-    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.072,6,6), eyeM);
-    eyeL.position.set(-0.11,1.76,0.27); this._group.add(eyeL);
-    const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.072,6,6), eyeM);
-    eyeR.position.set( 0.11,1.76,0.27); this._group.add(eyeR);
-    // Screaming mouth
-    const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.07,6,4), darkM);
-    mouth.scale.set(1.5,1.0,0.45); mouth.position.set(0,1.60,0.28); this._group.add(mouth);
-    // Outer glow
-    this._glow = new THREE.Mesh(new THREE.SphereGeometry(0.75,8,8), glowM);
-    this._glow.position.y=1.2; this._group.add(this._glow);
-    // Point light
-    this._light = new THREE.PointLight(0x5577ff,1.2,8);
-    this._light.position.y=1.5; this._group.add(this._light);
+
+    // Materials
+    const shroudM = new THREE.MeshStandardMaterial({color:0xaabbcc,roughness:0.97,emissive:new THREE.Color(0x050812),emissiveIntensity:0.4,transparent:true,opacity:0.94});
+    const hoodM   = new THREE.MeshStandardMaterial({color:0x8899b4,roughness:0.95,emissive:new THREE.Color(0x020608),emissiveIntensity:0.5,transparent:true,opacity:0.90,side:THREE.DoubleSide});
+    const skinM   = new THREE.MeshStandardMaterial({color:0x080815,roughness:0.9,emissive:new THREE.Color(0x04041a),emissiveIntensity:0.8});
+    const eyeM    = new THREE.MeshBasicMaterial({color:0xff1100});
+    const eyeGlowM= new THREE.MeshBasicMaterial({color:0xaa0000,transparent:true,opacity:0.45});
+    const darkM   = new THREE.MeshBasicMaterial({color:0x000000});
+    const toothM  = new THREE.MeshStandardMaterial({color:0xdddbd0,roughness:0.55});
+
+    const add = (geo,mat,x,y,z,sx=1,sy=1,sz=1) => {
+      const m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); m.scale.set(sx,sy,sz); this._group.add(m); return m;
+    };
+
+    // === CLOAK BODY (wide trapezoid, rough cloth) ===
+    add(new THREE.CylinderGeometry(0.52,0.70,1.4,12), shroudM, 0, 0.75, 0);  // main body
+    add(new THREE.CylinderGeometry(0.68,0.60,0.22,12), shroudM, 0, 1.44, 0); // wide shoulder shelf
+    // Slight drift/hem at bottom
+    add(new THREE.CylinderGeometry(0.62,0.76,0.18,12), shroudM, 0, 0.11, 0);
+
+    // === HOOD ===
+    // Upper dome of hood
+    add(new THREE.SphereGeometry(0.46,12,8,0,Math.PI*2,0,Math.PI*0.58), hoodM, 0, 1.58, 0);
+    // Hood side drape (gives the pointed hood silhouette)
+    add(new THREE.ConeGeometry(0.15,0.38,8), hoodM, 0, 2.10, -0.08);
+    // Front collar/rim of hood
+    add(new THREE.TorusGeometry(0.29,0.05,6,16,Math.PI), shroudM, 0, 1.65, 0.22, 0.3,0,0);
+
+    // === DARK SKULL HEAD (visible under hood) ===
+    const head = add(new THREE.SphereGeometry(0.24,10,8), skinM, 0, 1.68, 0.06, 1,1.1,0.88);
+    // Neck
+    add(new THREE.CylinderGeometry(0.09,0.13,0.22,8), skinM, 0, 1.44, 0.04);
+    // Cheekbone ridges
+    add(new THREE.SphereGeometry(0.09,6,5), skinM, -0.16,1.67,0.14, 1.4,0.7,0.7);
+    add(new THREE.SphereGeometry(0.09,6,5), skinM,  0.16,1.67,0.14, 1.4,0.7,0.7);
+
+    // === GLOWING RED EYES ===
+    add(new THREE.SphereGeometry(0.052,6,6), eyeGlowM, -0.10,1.715,0.28);
+    add(new THREE.SphereGeometry(0.052,6,6), eyeGlowM,  0.10,1.715,0.28);
+    add(new THREE.SphereGeometry(0.033,6,6), eyeM,      -0.10,1.715,0.295);
+    add(new THREE.SphereGeometry(0.033,6,6), eyeM,       0.10,1.715,0.295);
+
+    // === SCREAMING MOUTH ===
+    const mouth = add(new THREE.SphereGeometry(0.088,8,6), darkM, 0,1.575,0.295);
+    mouth.scale.set(1.25,1.6,0.4);
+    // Upper fangs
+    const FANG_DATA = [[-0.062,0.090],[-0.030,0.110],[0,0.088],[0.030,0.110],[0.062,0.090]];
+    for(const [fx,fh] of FANG_DATA){
+      const f=new THREE.Mesh(new THREE.ConeGeometry(0.014,fh,4),toothM);
+      f.position.set(fx,1.606-fh/2,0.296); f.rotation.z=Math.PI; this._group.add(f);
+    }
+    // Lower fangs
+    const LFANG = [[-0.055,0.072],[-0.018,0.086],[0.018,0.086],[0.055,0.072]];
+    for(const [fx,fh] of LFANG){
+      const f=new THREE.Mesh(new THREE.ConeGeometry(0.012,fh,4),toothM);
+      f.position.set(fx,1.540+fh/2,0.296); this._group.add(f);
+    }
+
+    // === GLOW SHELL ===
+    this._glow = new THREE.Mesh(new THREE.SphereGeometry(0.95,8,8),
+      new THREE.MeshBasicMaterial({color:0x110005,transparent:true,opacity:0.09,side:THREE.BackSide}));
+    this._glow.position.y=1.0; this._group.add(this._glow);
+
+    // === LIGHTS ===
+    this._light    = new THREE.PointLight(0xcc0011,1.8,10);
+    this._light.position.set(0,1.7,0); this._group.add(this._light);
+    this._eyeLight = new THREE.PointLight(0xff2200,1.0,3.5);
+    this._eyeLight.position.set(0,1.715,0.5); this._group.add(this._eyeLight);
+
     this._target = new THREE.Vector3();
     this._phase  = Math.random()*Math.PI*2;
   }
@@ -1706,12 +1796,13 @@ class GhostRenderer {
   update(delta) {
     if (!this._group.visible) return;
     const t = Date.now()/1000;
-    const float = Math.sin(t*1.3+this._phase)*0.14;
+    const float = Math.sin(t*1.1+this._phase)*0.13;
     this._group.position.x += (this._target.x - this._group.position.x)*0.12;
     this._group.position.y += ((this._target.y+float) - this._group.position.y)*0.1;
     this._group.position.z += (this._target.z - this._group.position.z)*0.12;
-    this._light.intensity = 1.0 + Math.sin(t*2.2)*0.35;
-    this._glow.material.opacity = 0.12 + Math.sin(t*1.7)*0.06;
+    this._light.intensity    = 1.6 + Math.sin(t*2.0)*0.5;
+    this._eyeLight.intensity = 0.8 + Math.sin(t*3.1)*0.3;
+    this._glow.material.opacity = 0.07 + Math.sin(t*1.4)*0.04;
   }
 }
 
@@ -1988,7 +2079,7 @@ class PlayerController {
     return map;
   }
   enterCloset(room) { this.isHiding=true; const cp=room.closetPos; this.camera.position.set(cp.x,cp.y,cp.z); }
-  exitCloset() { this.isHiding=false; }
+  exitCloset() { this.isHiding=false; try { this.controls.lock(); } catch(e){} }
   becomeSpectator() { this.isDead=true; }
 }
 
@@ -3041,38 +3132,91 @@ function playScreech() {
 function drawJumpscareFace(canvas) {
   const W=canvas.width, H=canvas.height;
   const ctx = canvas.getContext('2d');
-  // Background
-  const bg = ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,W*0.7);
-  bg.addColorStop(0,'#8b0000'); bg.addColorStop(1,'#000');
-  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-  // Face
-  ctx.fillStyle='rgba(210,228,255,0.92)';
-  ctx.beginPath(); ctx.ellipse(W/2,H/2-10,155,185,0,0,Math.PI*2); ctx.fill();
-  // Eye sockets (dark hollow)
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+
+  // === Wide cloak body (bottom half) ===
+  const cloakG = ctx.createLinearGradient(W/2,H*0.48,W/2,H);
+  cloakG.addColorStop(0,'#7a8fa8'); cloakG.addColorStop(0.4,'#5a6e84'); cloakG.addColorStop(1,'#1a2030');
+  ctx.fillStyle=cloakG;
+  ctx.beginPath();
+  ctx.moveTo(W*0.02,H); ctx.lineTo(W*0.98,H);
+  ctx.lineTo(W*0.76,H*0.46); ctx.lineTo(W*0.24,H*0.46);
+  ctx.closePath(); ctx.fill();
+
+  // === Hood (upper half, rounded) ===
+  const hoodG = ctx.createRadialGradient(W/2,H*0.28,W*0.04,W/2,H*0.28,W*0.46);
+  hoodG.addColorStop(0,'#6e82a0'); hoodG.addColorStop(0.55,'#3d4f66'); hoodG.addColorStop(1,'#0d1220');
+  ctx.fillStyle=hoodG;
+  ctx.beginPath();
+  ctx.arc(W/2,H*0.32,W*0.40,Math.PI,0);
+  ctx.lineTo(W*0.76,H*0.46); ctx.lineTo(W*0.24,H*0.46);
+  ctx.closePath(); ctx.fill();
+
+  // Shadow inside hood — darkens face area dramatically
+  const shadowG = ctx.createRadialGradient(W/2,H*0.28,W*0.02,W/2,H*0.28,W*0.32);
+  shadowG.addColorStop(0,'rgba(0,0,0,0)'); shadowG.addColorStop(0.45,'rgba(0,0,10,0.55)'); shadowG.addColorStop(1,'rgba(0,0,0,0.92)');
+  ctx.fillStyle=shadowG; ctx.fillRect(0,0,W,H);
+
+  // === Dark skull face ===
+  const faceG = ctx.createRadialGradient(W/2,H*0.32,0,W/2,H*0.32,W*0.21);
+  faceG.addColorStop(0,'#14131e'); faceG.addColorStop(0.65,'#0a0a14'); faceG.addColorStop(1,'#040408');
+  ctx.fillStyle=faceG;
+  ctx.beginPath(); ctx.ellipse(W/2,H*0.32,W*0.185,W*0.22,0,0,Math.PI*2); ctx.fill();
+
+  // === Deep eye sockets ===
   ctx.fillStyle='#000';
-  ctx.beginPath(); ctx.ellipse(W/2-58,H/2-55,44,58,-0.18,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(W/2+58,H/2-55,44,58, 0.18,0,Math.PI*2); ctx.fill();
-  // Red irises
-  ctx.fillStyle='#cc0000';
-  ctx.beginPath(); ctx.ellipse(W/2-58,H/2-55,22,30,-0.18,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(W/2+58,H/2-55,22,30, 0.18,0,Math.PI*2); ctx.fill();
-  // Pupils
-  ctx.fillStyle='#000';
-  ctx.beginPath(); ctx.ellipse(W/2-58,H/2-55,9,12,0,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(W/2+58,H/2-55,9,12,0,0,Math.PI*2); ctx.fill();
-  // Screaming mouth
-  ctx.fillStyle='#000';
-  ctx.beginPath(); ctx.ellipse(W/2,H/2+70,58,78,0,0,Math.PI*2); ctx.fill();
-  // Teeth
-  ctx.fillStyle='rgba(240,240,240,0.9)';
-  for(let i=-2;i<=2;i++){
-    ctx.fillRect(W/2+i*22-9, H/2+14, 18, 34);
-    ctx.fillRect(W/2+i*22-9, H/2+118, 18, 30);
+  ctx.beginPath(); ctx.ellipse(W/2-W*0.072,H*0.275,W*0.06,W*0.072,-0.14,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(W/2+W*0.072,H*0.275,W*0.06,W*0.072, 0.14,0,Math.PI*2); ctx.fill();
+
+  // Red glow halos around eyes
+  ctx.fillStyle='rgba(160,0,0,0.38)';
+  ctx.beginPath(); ctx.ellipse(W/2-W*0.072,H*0.275,W*0.075,W*0.085,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(W/2+W*0.072,H*0.275,W*0.075,W*0.085,0,0,Math.PI*2); ctx.fill();
+
+  // Bright red eyes (radial glow core)
+  for(const ex of [-W*0.072, W*0.072]) {
+    const eg=ctx.createRadialGradient(W/2+ex,H*0.275,0,W/2+ex,H*0.275,W*0.058);
+    eg.addColorStop(0,'#ff6633'); eg.addColorStop(0.35,'#dd0000'); eg.addColorStop(1,'rgba(80,0,0,0)');
+    ctx.fillStyle=eg; ctx.beginPath(); ctx.ellipse(W/2+ex,H*0.275,W*0.058,W*0.068,0,0,Math.PI*2); ctx.fill();
   }
-  // Glow ring around face
-  const ring = ctx.createRadialGradient(W/2,H/2,140,W/2,H/2,200);
-  ring.addColorStop(0,'rgba(180,0,0,0.4)'); ring.addColorStop(1,'transparent');
-  ctx.fillStyle=ring; ctx.fillRect(0,0,W,H);
+  // Eye highlight dots
+  ctx.fillStyle='rgba(255,120,120,0.85)';
+  ctx.beginPath(); ctx.arc(W/2-W*0.068,H*0.268,W*0.016,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(W/2+W*0.068,H*0.268,W*0.016,0,Math.PI*2); ctx.fill();
+
+  // === Screaming mouth void ===
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.ellipse(W/2,H*0.395,W*0.095,W*0.13,0,0,Math.PI*2); ctx.fill();
+
+  // Upper fangs (5, varying size, pointing down)
+  ctx.fillStyle='rgba(222,218,200,0.94)';
+  const topFangs=[[-0.060,0.094],[-0.028,0.115],[0,0.088],[0.028,0.115],[0.060,0.094]];
+  for(const [fx,fh] of topFangs){
+    ctx.beginPath();
+    ctx.moveTo(W/2+fx*W-W*0.017, H*0.340);
+    ctx.lineTo(W/2+fx*W+W*0.017, H*0.340);
+    ctx.lineTo(W/2+fx*W, H*0.340+fh*H);
+    ctx.closePath(); ctx.fill();
+  }
+  // Lower fangs (4, pointing up)
+  const botFangs=[[-0.052,0.075],[-0.018,0.092],[0.018,0.092],[0.052,0.075]];
+  for(const [fx,fh] of botFangs){
+    ctx.beginPath();
+    ctx.moveTo(W/2+fx*W-W*0.015, H*0.455);
+    ctx.lineTo(W/2+fx*W+W*0.015, H*0.455);
+    ctx.lineTo(W/2+fx*W, H*0.455-fh*H);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // Red atmospheric glow centred on face
+  const atmG=ctx.createRadialGradient(W/2,H*0.32,W*0.04,W/2,H*0.32,W*0.55);
+  atmG.addColorStop(0,'rgba(100,0,0,0)'); atmG.addColorStop(0.5,'rgba(88,0,0,0.22)'); atmG.addColorStop(1,'transparent');
+  ctx.fillStyle=atmG; ctx.fillRect(0,0,W,H);
+
+  // Vignette
+  const vigG=ctx.createRadialGradient(W/2,H/2,W*0.18,W/2,H/2,W*0.82);
+  vigG.addColorStop(0,'transparent'); vigG.addColorStop(1,'rgba(0,0,0,0.75)');
+  ctx.fillStyle=vigG; ctx.fillRect(0,0,W,H);
 }
 
 function triggerJumpscare(onDone) {
@@ -3143,6 +3287,11 @@ document.addEventListener('keydown', e => {
 document.addEventListener('keydown', e => {
   if (e.code !== 'KeyE' || journal.isVisible()) return;
   const pos = scene.camera.position;
+  // Van rear doors
+  if (Math.abs(pos.z - 4.05) < 2.8 && Math.abs(pos.x) < 5.5) {
+    houseDetails?.toggleVanDoors();
+    return;
+  }
   // Fuse box
   if (curRoomId === 'boiler_room') {
     const fb = ROOM_MAP['boiler_room'].fuseBoxPos;
@@ -3196,11 +3345,14 @@ function animate() {
       const fb = ROOM_MAP['boiler_room'].fuseBoxPos;
       if (fb && Math.sqrt((pos.x-fb.x)**2+(pos.z-fb.z)**2) < 2.5) hud.setInteractPrompt('[E] Toggle power');
       else if (!player.isHiding) hud.setInteractPrompt('');
+    } else if (Math.abs(pos.z - 4.05) < 2.8 && Math.abs(pos.x) < 5.5 && !player.isHiding) {
+      hud.setInteractPrompt(houseDetails?._vanDoors?.open ? '[E] Close van doors' : '[E] Open van doors');
     } else if (!player.isHiding) {
       const room = ROOM_MAP[curRoomId];
       if (room) { const cp=room.closetPos; Math.sqrt((pos.x-cp.x)**2+(pos.z-cp.z)**2)<1.2 ? hud.setInteractPrompt('[E] Hide in closet') : hud.setInteractPrompt(''); }
     }
 
+    houseDetails?.updateDoors(delta);
     toolMgr.update(delta, curRoomId);
     ghost.update(delta);
     otherPlayers.update(delta);
