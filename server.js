@@ -26,7 +26,6 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({ lan: true }));
     return;
   }
-  // Map / → dist/ghost-detectives.html
   let filePath = req.url === '/' ? '/ghost-detectives.html' : req.url;
   filePath = path.join(DIST, filePath.split('?')[0]);
   try {
@@ -42,117 +41,112 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocketServer({ server });
 
-// Game sessions: map sessionId → {players, gameState, lastUpdate}
-const sessions = new Map();
-const wsToSession = new Map(); // Track which session each WebSocket belongs to
+// parties: Map<code, { code, hostId, players: Map<id, {id,name}>, wsMap: Map<id, ws> }>
+const parties = new Map();
+const wsToInfo = new Map(); // ws → { code, playerId }
 
-function findOrCreateSession() {
-  for (const [id, sess] of sessions) {
-    if (sess.gameState.phase === 'INVESTIGATION' && Object.keys(sess.players).length < 4) {
-      return id;
-    }
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function generateCode() {
+  let code;
+  do { code = Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join(''); }
+  while (parties.has(code));
+  return code;
+}
+
+function memberList(party) {
+  return Array.from(party.players.values()).map(p => ({ id: p.id, name: p.name, isHost: p.id === party.hostId }));
+}
+
+function broadcastParty(code, msg, except = null) {
+  const party = parties.get(code);
+  if (!party) return;
+  const data = JSON.stringify(msg);
+  for (const [, ws] of party.wsMap) {
+    if (ws !== except && ws.readyState === WebSocket.OPEN) ws.send(data);
   }
-  const id = Math.random().toString(36).slice(2, 8).toUpperCase();
-  sessions.set(id, {
-    players: {},
-    gameState: { phase: 'LOBBY', players: {} },
-    lastUpdate: Date.now(),
-  });
-  return id;
 }
 
 wss.on('connection', (ws) => {
-  let playerId = null, sessionId = null;
-
-  ws.on('message', (data) => {
+  ws.on('message', (raw) => {
     try {
-      const msg = JSON.parse(data);
+      const msg = JSON.parse(raw);
 
-      if (msg.type === 'join') {
-        sessionId = findOrCreateSession();
-        wsToSession.set(ws, sessionId);
-        playerId = `p_${Date.now()}_${Math.random()}`;
-        const sess = sessions.get(sessionId);
-
-        sess.players[playerId] = {
-          id: playerId,
-          name: msg.name || 'Player',
-          position: {x:0, y:1.7, z:9},
-          rotation: {y:0},
-          sanity: 100,
-          isDead: false,
-          isHiding: false,
-          currentRoomId: 'van',
-          heldToolId: null,
-        };
-
-        // Send join response
-        ws.send(JSON.stringify({
-          type: 'joined',
-          sessionId,
-          playerId,
-          players: Object.values(sess.players),
-        }));
-
-        // Broadcast to others in session
-        broadcast(sessionId, {
-          type: 'playerJoined',
-          playerId,
-          player: sess.players[playerId],
-        }, ws);
+      if (msg.type === 'createParty') {
+        const code = generateCode();
+        const playerId = `p_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const party = { code, hostId: playerId, players: new Map(), wsMap: new Map() };
+        party.players.set(playerId, { id: playerId, name: msg.name || 'Detective' });
+        party.wsMap.set(playerId, ws);
+        parties.set(code, party);
+        wsToInfo.set(ws, { code, playerId });
+        ws.send(JSON.stringify({ type: 'partyCreated', code, playerId, members: memberList(party) }));
       }
 
-      else if (msg.type === 'move') {
-        const sess = sessions.get(sessionId);
-        if (sess && sess.players[playerId]) {
-          const p = sess.players[playerId];
-          p.position = msg.position;
-          p.rotation = msg.rotation;
-          p.currentRoomId = msg.currentRoomId;
+      else if (msg.type === 'joinParty') {
+        const code = (msg.code || '').toUpperCase().trim();
+        const party = parties.get(code);
+        if (!party) { ws.send(JSON.stringify({ type: 'error', message: 'Party not found. Check the code and try again.' })); return; }
+        if (party.players.size >= 4) { ws.send(JSON.stringify({ type: 'error', message: 'Party is full (max 4 players).' })); return; }
+        const playerId = `p_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        party.players.set(playerId, { id: playerId, name: msg.name || 'Detective' });
+        party.wsMap.set(playerId, ws);
+        wsToInfo.set(ws, { code, playerId });
+        ws.send(JSON.stringify({ type: 'partyJoined', code, playerId, hostId: party.hostId, members: memberList(party) }));
+        broadcastParty(code, { type: 'partyUpdate', members: memberList(party) }, ws);
+      }
+
+      else if (msg.type === 'launchGame') {
+        const info = wsToInfo.get(ws);
+        if (!info) return;
+        const party = parties.get(info.code);
+        if (!party || party.hostId !== info.playerId) return;
+        const payload = JSON.stringify({ type: 'gameStarted', params: msg.params });
+        for (const [, client] of party.wsMap) {
+          if (client.readyState === WebSocket.OPEN) client.send(payload);
         }
       }
 
-      else if (msg.type === 'state') {
-        const sess = sessions.get(sessionId);
-        if (sess) sess.gameState = msg.state;
+      else if (msg.type === 'move') {
+        const info = wsToInfo.get(ws);
+        if (!info) return;
+        broadcastParty(info.code, {
+          type: 'playerMoved', playerId: info.playerId,
+          position: msg.position, rotation: msg.rotation, currentRoomId: msg.currentRoomId,
+        }, ws);
       }
 
-      else if (msg.type === 'broadcast') {
-        broadcast(sessionId, msg.data);
-      }
     } catch (e) {
       console.error('Message error:', e);
     }
   });
 
   ws.on('close', () => {
-    if (sessionId && playerId) {
-      const sess = sessions.get(sessionId);
-      if (sess) {
-        delete sess.players[playerId];
-        broadcast(sessionId, { type: 'playerLeft', playerId });
-        if (Object.keys(sess.players).length === 0) sessions.delete(sessionId);
+    const info = wsToInfo.get(ws);
+    if (info) {
+      const party = parties.get(info.code);
+      if (party) {
+        party.players.delete(info.playerId);
+        party.wsMap.delete(info.playerId);
+        if (party.players.size === 0) {
+          parties.delete(info.code);
+        } else {
+          if (party.hostId === info.playerId) {
+            party.hostId = party.players.keys().next().value;
+          }
+          broadcastParty(info.code, { type: 'partyUpdate', members: memberList(party) });
+        }
       }
+      wsToInfo.delete(ws);
     }
-    wsToSession.delete(ws);
   });
 });
 
-function broadcast(sessionId, msg, except = null) {
-  const data = JSON.stringify(msg);
-  wss.clients.forEach(client => {
-    if (client !== except && wsToSession.get(client) === sessionId && client.readyState === WebSocket.OPEN) {
-      client.send(data);
-    }
-  });
-}
-
 server.listen(PORT, '0.0.0.0', () => {
   const localIP = getLocalIP();
-  console.log(`\n🎮 Ghost Detectives LAN Server\n`);
+  console.log(`\n🎮 Ghost Detectives Server\n`);
   console.log(`Local:  http://localhost:${PORT}`);
   console.log(`LAN:    http://${localIP}:${PORT}`);
-  console.log(`\nShare the LAN address with players on your network.\n`);
+  console.log(`\nShare the LAN address with friends on your network.\n`);
 });
 
 function getLocalIP() {

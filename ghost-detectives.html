@@ -36,14 +36,26 @@ canvas { display: block; width: 100vw; height: 100vh; }
 #room-name { color: #bbb; }
 #temp-display { color: #6cf; margin-top: 2px; }
 #interact-prompt { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); font-size: 13px; color: #fff; background: rgba(0,0,0,0.5); padding: 4px 10px; display: none; }
-#lobby { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; z-index: 100; }
-#lobby h1 { font-size: 36px; color: #c33; letter-spacing: 4px; }
-#lobby h2 { font-size: 14px; color: #777; letter-spacing: 2px; }
+#lobby, #mode-screen, #mp-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; z-index: 100; }
+#mode-screen, #mp-screen { display: none; }
+#lobby h1, #mode-screen h1, #mp-screen h1 { font-size: 36px; color: #c33; letter-spacing: 4px; }
+#lobby h2, #mode-screen h2, #mp-screen h2 { font-size: 14px; color: #777; letter-spacing: 2px; }
 #lobby input { background: rgba(255,255,255,0.1); border: 1px solid #555; color: #eee; padding: 8px 14px; font-size: 15px; font-family: 'Courier New', monospace; text-align: center; width: 220px; }
 #lobby input:focus { outline: none; border-color: #c33; }
 .lobby-btn { background: #c33; color: #fff; border: none; padding: 10px 28px; font-size: 15px; cursor: pointer; font-family: 'Courier New', monospace; letter-spacing: 1px; }
 .lobby-btn:hover { background: #e44; }
 .lobby-btn:disabled { background: #555; cursor: default; }
+.mode-desc { color: #555; font-size: 11px; text-align: center; max-width: 280px; margin: -10px 0 6px; }
+#mp-divider { color: #444; font-size: 12px; letter-spacing: 2px; margin: 4px 0; }
+#mp-error { color: #c55; font-size: 12px; min-height: 16px; }
+#party-code-input { background: rgba(255,255,255,0.1); border: 1px solid #555; color: #eee; padding: 8px 14px; font-size: 18px; font-family: 'Courier New', monospace; text-align: center; width: 180px; letter-spacing: 6px; text-transform: uppercase; }
+#party-code-input:focus { outline: none; border-color: #c33; }
+#mp-waiting { display:none; flex-direction:column; align-items:center; gap:10px; margin-top:10px; border-top:1px solid #222; padding-top:16px; width:100%; max-width:320px; }
+#party-code-display { text-align:center; }
+#party-code-display small { display:block; color:#555; font-size:11px; letter-spacing:2px; margin-bottom:4px; }
+#party-code-text { font-size:38px; color:#c33; letter-spacing:10px; }
+#party-members-list { color:#888; font-size:13px; text-align:center; line-height:1.8; }
+#mp-back-btn { background:#222 !important; border:1px solid #444; margin-top:4px; }
 #journal { position: fixed; inset: 0; background: rgba(0,0,0,0.88); display: none; z-index: 50; padding: 40px; overflow-y: auto; pointer-events: all; }
 #journal h2 { color: #c33; margin-bottom: 20px; letter-spacing: 2px; font-size: 20px; }
 #journal-inner { display: flex; gap: 40px; }
@@ -104,8 +116,34 @@ canvas { display: block; width: 100vw; height: 100vh; }
   <h1>GHOST DETECTIVES</h1>
   <h2>WHITTAKER HOUSE — PARANORMAL INVESTIGATION UNIT</h2>
   <input id="name-input" maxlength="16" placeholder="Enter your name..." />
-  <button class="lobby-btn" id="start-btn">ENTER THE HOUSE</button>
-  <div style="color:#555;font-size:11px;text-align:center;max-width:300px">Single player — identify the ghost before your sanity is lost</div>
+  <button class="lobby-btn" id="start-btn">CONTINUE</button>
+</div>
+
+<div id="mode-screen">
+  <h1>GHOST DETECTIVES</h1>
+  <h2>WHITTAKER HOUSE — PARANORMAL INVESTIGATION UNIT</h2>
+  <button class="lobby-btn" id="solo-btn">SINGLE PLAYER</button>
+  <p class="mode-desc">Investigate alone. Identify the ghost before your sanity is lost.</p>
+  <button class="lobby-btn" id="mp-btn">MULTIPLAYER</button>
+  <p class="mode-desc">Create or join a party with friends using a party code.</p>
+</div>
+
+<div id="mp-screen">
+  <h1>GHOST DETECTIVES</h1>
+  <h2>MULTIPLAYER</h2>
+  <button class="lobby-btn" id="create-party-btn">CREATE PARTY</button>
+  <p class="mode-desc">Generate a code and invite friends on the same network.</p>
+  <div id="mp-divider">— OR —</div>
+  <input id="party-code-input" maxlength="6" placeholder="XXXXXX" autocomplete="off" spellcheck="false" />
+  <button class="lobby-btn" id="join-party-btn">JOIN PARTY</button>
+  <p id="mp-error"></p>
+  <div id="mp-waiting">
+    <div id="party-code-display"><small>PARTY CODE</small><span id="party-code-text"></span></div>
+    <div id="party-members-list"></div>
+    <button class="lobby-btn" id="launch-btn" style="display:none">LAUNCH INVESTIGATION</button>
+    <p class="mode-desc" id="waiting-hint">Waiting for host to start...</p>
+  </div>
+  <button class="lobby-btn" id="mp-back-btn">← BACK</button>
 </div>
 
 <div id="hud">
@@ -301,11 +339,21 @@ class LocalGame {
   }
 
   startGame() {
-    this._phase = PHASE.INVESTIGATION;
-    this._ghostType = GHOST_TYPES[Math.floor(Math.random() * GHOST_TYPES.length)];
-    this._ghostRoomId = GHOST_ROOM_POOL[Math.floor(Math.random() * GHOST_ROOM_POOL.length)];
     const tools = ['emf','thermometer','goggles','uv','notebook','sensor','spiritbox'];
-    this._triggerItemId = tools[Math.floor(Math.random() * tools.length)];
+    this._doStart(
+      GHOST_TYPES[Math.floor(Math.random() * GHOST_TYPES.length)].id,
+      GHOST_ROOM_POOL[Math.floor(Math.random() * GHOST_ROOM_POOL.length)],
+      tools[Math.floor(Math.random() * tools.length)]
+    );
+  }
+  startGameWith({ ghostTypeId, ghostRoomId, triggerItemId }) {
+    this._doStart(ghostTypeId, ghostRoomId, triggerItemId);
+  }
+  _doStart(ghostTypeId, ghostRoomId, triggerItemId) {
+    this._phase = PHASE.INVESTIGATION;
+    this._ghostType = GHOST_TYPES.find(g => g.id === ghostTypeId) || GHOST_TYPES[0];
+    this._ghostRoomId = ghostRoomId;
+    this._triggerItemId = triggerItemId;
 
     const ev = this._ghostType.evidence;
     this._evidence.emf5Available          = ev.includes(EVIDENCE.EMF5);
@@ -2383,52 +2431,54 @@ class ToolManager {
 
 // ── LAN Multiplayer Client ────────────────────────────────────────────────────
 class LANClient {
-  constructor(game) {
-    this.game = game;
+  constructor() {
     this.ws = null;
     this.playerId = null;
-    this.otherPlayers = new Map();
+    this.partyCode = null;
+    this.isHost = false;
     this.connected = false;
-    this._tryConnect();
+    this._name = '';
+    this._pendingAction = null;
+    this.onPartyUpdate = null; // (members, code, isHost) => void
+    this.onGameStarted = null; // (params) => void
+    this.onError = null;       // (msg) => void
   }
-  _tryConnect() {
-    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname;
-    const port = window.location.port || (window.location.protocol === 'https:' ? 443 : 80);
-    const wsUrl = `${proto}//${host}:3000`;
-    try {
-      this.ws = new WebSocket(wsUrl);
-      this.ws.onopen = () => this._onOpen();
-      this.ws.onmessage = (e) => this._onMessage(JSON.parse(e.data));
-      this.ws.onclose = () => { this.connected = false; console.log('LAN disconnected'); };
-      this.ws.onerror = () => { this.connected = false; };
-    } catch (e) {
-      console.log('LAN not available, playing offline');
-    }
+  connect(name) {
+    this._name = name;
+    if (this.ws && this.connected) return Promise.resolve();
+    return new Promise((resolve) => {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${proto}//${window.location.hostname}:3000`;
+      try {
+        this.ws = new WebSocket(wsUrl);
+        this.ws.onopen = () => { this.connected = true; resolve(); };
+        this.ws.onmessage = (e) => this._onMessage(JSON.parse(e.data));
+        this.ws.onclose = () => { this.connected = false; };
+        this.ws.onerror = () => { this.connected = false; resolve(); };
+      } catch { resolve(); }
+    });
   }
-  _onOpen() {
-    this.connected = true;
-    console.log('LAN connected');
-    this.send({ type: 'join', name: document.getElementById('name-input').value || 'Player' });
-  }
+  createParty() { this.send({ type: 'createParty', name: this._name }); }
+  joinParty(code) { this.send({ type: 'joinParty', name: this._name, code }); }
+  launchGame(params) { this.send({ type: 'launchGame', params }); }
+  send(msg) { if (this.connected && this.ws) this.ws.send(JSON.stringify(msg)); }
   _onMessage(msg) {
-    if (msg.type === 'joined') {
-      this.playerId = msg.playerId;
-      for (const p of msg.players || []) {
-        if (p.id !== this.playerId) this.otherPlayers.set(p.id, p);
-      }
-    } else if (msg.type === 'playerJoined') {
-      if (msg.playerId !== this.playerId) this.otherPlayers.set(msg.playerId, msg.player);
-    } else if (msg.type === 'playerLeft') {
-      this.otherPlayers.delete(msg.playerId);
+    if (msg.type === 'partyCreated') {
+      this.playerId = msg.playerId; this.partyCode = msg.code; this.isHost = true;
+      this.onPartyUpdate?.(msg.members, msg.code, true);
+    } else if (msg.type === 'partyJoined') {
+      this.playerId = msg.playerId; this.partyCode = msg.code; this.isHost = false;
+      this.onPartyUpdate?.(msg.members, msg.code, false);
+    } else if (msg.type === 'partyUpdate') {
+      this.onPartyUpdate?.(msg.members, this.partyCode, this.isHost);
+    } else if (msg.type === 'gameStarted') {
+      this.onGameStarted?.(msg.params);
+    } else if (msg.type === 'error') {
+      this.onError?.(msg.message);
     }
   }
-  send(msg) {
-    if (this.connected && this.ws) this.ws.send(JSON.stringify(msg));
-  }
-  update(pos, rot, roomId, state) {
+  update(pos, rot, roomId) {
     this.send({ type: 'move', position: pos, rotation: rot, currentRoomId: roomId });
-    this.send({ type: 'state', state });
   }
 }
 
@@ -2453,20 +2503,95 @@ const journal = new Journal(ghostId => game.submitGuess(ghostId));
 const toolMgr = new ToolManager(scene.camera, scene.scene, hud, scene, game);
 toolMgr.tools.sensor.setMapTablet(tablet);
 toolMgr.setShelf(vanShelf);
-const lanClient = new LANClient(game);
+const lanClient = new LANClient();
 
 let gameStarted = false, curRoomId = 'van', moveThrottle = 0;
 let _prevRoomId = 'van';
 
-// Lobby
-document.getElementById('start-btn').addEventListener('click', () => {
-  const name = document.getElementById('name-input').value.trim() || 'Detective';
-  game.join(name);
-  document.getElementById('lobby').style.display = 'none';
+// ── Lobby flow ────────────────────────────────────────────────────────────────
+function getName() { return document.getElementById('name-input').value.trim() || 'Detective'; }
+function hide(id) { document.getElementById(id).style.display = 'none'; }
+function show(id, disp='flex') { document.getElementById(id).style.display = disp; }
+
+function launchSinglePlayer() {
+  hide('lobby'); hide('mode-screen');
+  game.join(getName());
   game.startGame();
+}
+
+function enterGame(params) {
+  hide('lobby'); hide('mode-screen'); hide('mp-screen');
+  game.join(getName());
+  if (params) game.startGameWith(params); else game.startGame();
+}
+
+// Name screen → mode screen
+document.getElementById('start-btn').addEventListener('click', () => {
+  if (!getName()) return;
+  hide('lobby');
+  show('mode-screen');
 });
 document.getElementById('name-input').addEventListener('keydown', e => {
   if (e.code === 'Enter') document.getElementById('start-btn').click();
+});
+
+// Mode screen
+document.getElementById('solo-btn').addEventListener('click', () => {
+  hide('mode-screen');
+  launchSinglePlayer();
+});
+document.getElementById('mp-btn').addEventListener('click', () => {
+  hide('mode-screen');
+  show('mp-screen');
+});
+
+// Multiplayer party screen
+function renderPartyMembers(members, code, isHost) {
+  document.getElementById('party-code-text').textContent = code;
+  const list = document.getElementById('party-members-list');
+  list.innerHTML = members.map(m => `<div>${m.name}${m.isHost ? ' <span style="color:#c33">[HOST]</span>' : ''}</div>`).join('');
+  document.getElementById('launch-btn').style.display = isHost ? 'block' : 'none';
+  document.getElementById('waiting-hint').style.display = isHost ? 'none' : 'block';
+  show('mp-waiting', 'flex');
+}
+
+lanClient.onPartyUpdate = (members, code, isHost) => renderPartyMembers(members, code, isHost);
+lanClient.onError = (msg) => { document.getElementById('mp-error').textContent = msg; };
+lanClient.onGameStarted = (params) => { enterGame(params); };
+
+document.getElementById('create-party-btn').addEventListener('click', async () => {
+  document.getElementById('mp-error').textContent = '';
+  await lanClient.connect(getName());
+  if (!lanClient.connected) { document.getElementById('mp-error').textContent = 'Could not connect to server.'; return; }
+  lanClient.createParty();
+});
+
+document.getElementById('join-party-btn').addEventListener('click', async () => {
+  const code = document.getElementById('party-code-input').value.trim().toUpperCase();
+  document.getElementById('mp-error').textContent = '';
+  if (!code || code.length !== 6) { document.getElementById('mp-error').textContent = 'Enter a 6-character party code.'; return; }
+  await lanClient.connect(getName());
+  if (!lanClient.connected) { document.getElementById('mp-error').textContent = 'Could not connect to server.'; return; }
+  lanClient.joinParty(code);
+});
+
+document.getElementById('party-code-input').addEventListener('keydown', e => {
+  if (e.code === 'Enter') document.getElementById('join-party-btn').click();
+});
+
+document.getElementById('launch-btn').addEventListener('click', () => {
+  const tools = ['emf','thermometer','goggles','uv','notebook','sensor','spiritbox'];
+  const params = {
+    ghostTypeId: GHOST_TYPES[Math.floor(Math.random() * GHOST_TYPES.length)].id,
+    ghostRoomId: GHOST_ROOM_POOL[Math.floor(Math.random() * GHOST_ROOM_POOL.length)],
+    triggerItemId: tools[Math.floor(Math.random() * tools.length)],
+  };
+  lanClient.launchGame(params);
+});
+
+document.getElementById('mp-back-btn').addEventListener('click', () => {
+  hide('mp-screen');
+  show('mode-screen');
 });
 
 // ── Jumpscare ─────────────────────────────────────────────────────────────────
@@ -2542,7 +2667,7 @@ function triggerJumpscare(onDone) {
 game.on('game:start', () => {
   gameStarted = true;
   hud.show();
-  const displayId = lanClient.connected && lanClient.playerId ? `SESSION ${lanClient.playerId.substring(0, 8)}` : 'WHITTAKER HOUSE';
+  const displayId = lanClient.partyCode ? `PARTY ${lanClient.partyCode}` : 'WHITTAKER HOUSE';
   document.getElementById('session-id').textContent = displayId;
   const cs = document.getElementById('click-start');
   cs.style.display = 'flex';
