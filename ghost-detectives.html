@@ -2489,6 +2489,51 @@ function buildToolModel(id) {
       M(new THREE.BoxGeometry(0.185,0.001,0.006),0x5c3a22,{r:1,p:[0,0.01,0]}); // wood grain on top
       break;
     }
+    case 'journal': {
+      // Dark red hardcover journal lying flat, long axis along X
+      const jc = document.createElement('canvas');
+      jc.width = 512; jc.height = 256;
+      const jctx = jc.getContext('2d');
+      jctx.fillStyle = '#5c0f0f';
+      jctx.fillRect(0,0,512,256);
+      jctx.strokeStyle = '#c9a227'; jctx.lineWidth = 8;
+      jctx.strokeRect(14,14,484,228);
+      jctx.lineWidth = 2; jctx.strokeRect(26,26,460,204);
+      jctx.fillStyle = '#c9a227';
+      jctx.font = 'bold italic 70px Georgia, serif';
+      jctx.textAlign = 'center'; jctx.textBaseline = 'middle';
+      jctx.fillText('Journal', 256, 128);
+
+      // Hardcover body
+      M(new THREE.BoxGeometry(0.20,0.058,0.155), 0x5c0f0f, {r:0.9});
+
+      // Label plane on top face
+      const jlm = new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(jc), roughness:0.9, emissive:0xc9a227, emissiveIntensity:0.05});
+      const jlp = new THREE.Mesh(new THREE.PlaneGeometry(0.17,0.125), jlm);
+      jlp.rotation.x = -Math.PI/2; jlp.position.y = 0.0295; g.add(jlp);
+
+      // Spine at -X edge
+      M(new THREE.BoxGeometry(0.018,0.058,0.155), 0x3a0808, {r:0.95, p:[-0.091,0,0]});
+
+      // Cream page block
+      M(new THREE.BoxGeometry(0.178,0.048,0.149), 0xf0ead8, {r:0.95});
+
+      // Page edge lines at +X (open side)
+      for(let i=0;i<7;i++)
+        M(new THREE.BoxGeometry(0.003,0.006,0.149), i%2===0?0xe0d8c4:0xfff8ee, {r:1, p:[0.093,-0.018+i*0.007,0]});
+
+      // Gold corner reinforcements
+      const goldM2 = new THREE.MeshStandardMaterial({color:0xc9a227, roughness:0.3, metalness:0.8});
+      for(const [px,pz] of [[-0.092,-0.069],[-0.092,0.069],[0.092,-0.069],[0.092,0.069]]) {
+        const cm = new THREE.Mesh(new THREE.BoxGeometry(0.022,0.003,0.022), goldM2);
+        cm.position.set(px, 0.031, pz); g.add(cm);
+      }
+
+      // Red ribbon bookmark
+      M(new THREE.BoxGeometry(0.008,0.002,0.042), 0xcc2222, {r:0.8, p:[0.04,0.0295,0.098]});
+
+      break;
+    }
   }
   g.scale.setScalar(1.8);
   return g;
@@ -2789,7 +2834,7 @@ const TUTORIAL_SLIDES = [
   { toolId:'crucifix', title:'CRUCIFIX',
     body:'A single-use item. When the ghost attempts to begin a hunt while you\'re nearby, the crucifix repels it — but it shatters after one use.\n\nCarry it into the ghost\'s room for protection.',
     hint:'SINGLE USE — Repels one hunt' },
-  { toolId:null, icon:'J', title:'THE EVIDENCE JOURNAL',
+  { toolId:'journal', title:'THE EVIDENCE JOURNAL',
     body:'Press [J] at any time to open your journal.\n\nClick each evidence type to cycle through: unknown → confirmed ✓ → ruled out ✗\n\nThe journal narrows down which ghost types are still possible. When you are certain, click a ghost name and press SUBMIT IDENTIFICATION.' },
 ];
 
