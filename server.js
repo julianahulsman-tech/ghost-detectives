@@ -82,6 +82,16 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'partyCreated', code, playerId, members: memberList(party) }));
       }
 
+      else if (msg.type === 'lookupParty') {
+        const code = (msg.code || '').toUpperCase().trim();
+        const party = parties.get(code);
+        if (!party) {
+          ws.send(JSON.stringify({ type: 'partyNotFound' }));
+        } else {
+          ws.send(JSON.stringify({ type: 'partyInfo', code, members: memberList(party) }));
+        }
+      }
+
       else if (msg.type === 'joinParty') {
         const code = (msg.code || '').toUpperCase().trim();
         const party = parties.get(code);

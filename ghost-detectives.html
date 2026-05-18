@@ -56,6 +56,13 @@ canvas { display: block; width: 100vw; height: 100vh; }
 #party-code-text { font-size:38px; color:#c33; letter-spacing:10px; }
 #party-members-list { color:#888; font-size:13px; text-align:center; line-height:1.8; }
 #mp-back-btn { background:#222 !important; border:1px solid #444; margin-top:4px; }
+#party-preview { display:none; border:1px solid #2a2a2a; background:rgba(255,255,255,0.03); padding:18px 28px; text-align:center; min-width:260px; gap:6px; flex-direction:column; align-items:center; }
+#preview-label { color:#555; font-size:10px; letter-spacing:3px; margin-bottom:4px; }
+#preview-host { color:#fff; font-size:15px; letter-spacing:1px; }
+#preview-host span { color:#c33; }
+#preview-members { color:#777; font-size:12px; line-height:2; width:100%; }
+#preview-members div { border-bottom:1px solid #1e1e1e; padding:2px 0; }
+#preview-members div:last-child { border-bottom:none; }
 #journal { position: fixed; inset: 0; background: rgba(0,0,0,0.88); display: none; z-index: 50; padding: 40px; overflow-y: auto; pointer-events: all; }
 #journal h2 { color: #c33; margin-bottom: 20px; letter-spacing: 2px; font-size: 20px; }
 #journal-inner { display: flex; gap: 40px; }
@@ -135,7 +142,13 @@ canvas { display: block; width: 100vw; height: 100vh; }
   <p class="mode-desc">Generate a code and invite friends on the same network.</p>
   <div id="mp-divider">— OR —</div>
   <input id="party-code-input" maxlength="6" placeholder="XXXXXX" autocomplete="off" spellcheck="false" />
-  <button class="lobby-btn" id="join-party-btn">JOIN PARTY</button>
+  <button class="lobby-btn" id="find-party-btn">FIND PARTY</button>
+  <div id="party-preview">
+    <div id="preview-label">PARTY FOUND</div>
+    <div id="preview-host">HOST: <span id="preview-host-name"></span></div>
+    <div id="preview-members"></div>
+    <button class="lobby-btn" id="confirm-join-btn">JOIN</button>
+  </div>
   <p id="mp-error"></p>
   <div id="mp-waiting">
     <div id="party-code-display"><small>PARTY CODE</small><span id="party-code-text"></span></div>
@@ -2570,10 +2583,12 @@ class LANClient {
     this.connected = false;
     this._name = '';
     this._pendingAction = null;
-    this.onPartyUpdate = null;  // (members, code, isHost) => void
-    this.onGameStarted = null;  // (params) => void
-    this.onPlayerMoved = null;  // (playerId, position, rotY) => void
-    this.onError = null;        // (msg) => void
+    this.onPartyUpdate = null;   // (members, code, isHost) => void
+    this.onPartyFound  = null;   // (code, members) => void
+    this.onPartyNotFound = null; // () => void
+    this.onGameStarted = null;   // (params) => void
+    this.onPlayerMoved = null;   // (playerId, position, rotY) => void
+    this.onError = null;         // (msg) => void
   }
   connect(name) {
     this._name = name;
@@ -2591,6 +2606,7 @@ class LANClient {
     });
   }
   createParty() { this.send({ type: 'createParty', name: this._name }); }
+  lookupParty(code) { this.send({ type: 'lookupParty', code }); }
   joinParty(code) { this.send({ type: 'joinParty', name: this._name, code }); }
   launchGame(params) { this.send({ type: 'launchGame', params }); }
   send(msg) { if (this.connected && this.ws) this.ws.send(JSON.stringify(msg)); }
@@ -2603,6 +2619,10 @@ class LANClient {
       this.onPartyUpdate?.(msg.members, msg.code, false);
     } else if (msg.type === 'partyUpdate') {
       this.onPartyUpdate?.(msg.members, this.partyCode, this.isHost);
+    } else if (msg.type === 'partyInfo') {
+      this.onPartyFound?.(msg.code, msg.members);
+    } else if (msg.type === 'partyNotFound') {
+      this.onPartyNotFound?.();
     } else if (msg.type === 'playerMoved') {
       if (msg.playerId !== this.playerId) this.onPlayerMoved?.(msg.playerId, msg.position, msg.rotation?.y ?? 0);
     } else if (msg.type === 'gameStarted') {
@@ -2699,24 +2719,56 @@ lanClient.onPartyUpdate = (members, code, isHost) => {
 lanClient.onError = (msg) => { document.getElementById('mp-error').textContent = msg; };
 lanClient.onGameStarted = (params) => { enterGame(params); };
 
-document.getElementById('create-party-btn').addEventListener('click', async () => {
+function hidePartyPreview() {
+  document.getElementById('party-preview').style.display = 'none';
   document.getElementById('mp-error').textContent = '';
+}
+
+lanClient.onPartyFound = (code, members) => {
+  document.getElementById('mp-error').textContent = '';
+  const host = members.find(m => m.isHost);
+  document.getElementById('preview-host-name').textContent = host ? host.name : '—';
+  const others = members.filter(m => !m.isHost);
+  document.getElementById('preview-members').innerHTML =
+    others.length ? others.map(m => `<div>${m.name}</div>`).join('') : '<div style="color:#444;font-size:11px">No other members yet</div>';
+  document.getElementById('confirm-join-btn').dataset.code = code;
+  document.getElementById('party-preview').style.display = 'flex';
+};
+
+lanClient.onPartyNotFound = () => {
+  hidePartyPreview();
+  document.getElementById('mp-error').textContent = 'Party not found.';
+};
+
+document.getElementById('create-party-btn').addEventListener('click', async () => {
+  hidePartyPreview();
   await lanClient.connect(getName());
   if (!lanClient.connected) { document.getElementById('mp-error').textContent = 'Could not connect to server.'; return; }
   lanClient.createParty();
 });
 
-document.getElementById('join-party-btn').addEventListener('click', async () => {
+document.getElementById('find-party-btn').addEventListener('click', async () => {
   const code = document.getElementById('party-code-input').value.trim().toUpperCase();
-  document.getElementById('mp-error').textContent = '';
+  hidePartyPreview();
   if (!code || code.length !== 6) { document.getElementById('mp-error').textContent = 'Enter a 6-character party code.'; return; }
   await lanClient.connect(getName());
   if (!lanClient.connected) { document.getElementById('mp-error').textContent = 'Could not connect to server.'; return; }
+  lanClient.lookupParty(code);
+});
+
+document.getElementById('confirm-join-btn').addEventListener('click', () => {
+  const code = document.getElementById('confirm-join-btn').dataset.code;
+  if (!code) return;
+  hidePartyPreview();
   lanClient.joinParty(code);
 });
 
 document.getElementById('party-code-input').addEventListener('keydown', e => {
-  if (e.code === 'Enter') document.getElementById('join-party-btn').click();
+  if (e.code === 'Enter') document.getElementById('find-party-btn').click();
+});
+
+document.getElementById('party-code-input').addEventListener('input', () => {
+  hidePartyPreview();
 });
 
 document.getElementById('launch-btn').addEventListener('click', () => {
