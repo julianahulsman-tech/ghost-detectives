@@ -1656,6 +1656,137 @@ class GhostRenderer {
   }
 }
 
+// ── DetectiveModel ────────────────────────────────────────────────────────────
+class DetectiveModel {
+  constructor(scene) {
+    this._group = new THREE.Group();
+    this._group.visible = false;
+    scene.add(this._group);
+    this._phase = Math.random() * Math.PI * 2;
+    this._build();
+  }
+  _mat(hex, opts={}) { return new THREE.MeshStandardMaterial({ color: hex, ...opts }); }
+  _box(w,h,d) { return new THREE.BoxGeometry(w,h,d); }
+  _cyl(rt,rb,h,s=12) { return new THREE.CylinderGeometry(rt,rb,h,s); }
+  _add(geo, mat, x, y, z, rx=0, ry=0, rz=0) {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x,y,z); m.rotation.set(rx,ry,rz);
+    this._group.add(m); return m;
+  }
+  _build() {
+    const coat  = this._mat(0x6b5230); // warm brown trench coat
+    const coatD = this._mat(0x5a4228); // darker brown for pocket details
+    const hat   = this._mat(0x3a2510); // very dark brown fedora
+    const band  = this._mat(0x15100a); // near-black hat band
+    const skin  = this._mat(0xf0c090); // skin
+    const pant  = this._mat(0x4a3f30); // dark olive trousers
+    const shoe  = this._mat(0x120d08); // black shoes
+    const brass = this._mat(0xb8924a); // belt buckle brass
+
+    // ── Head & neck ──────────────────────────────────────────────────────────
+    this._add(this._box(0.27,0.27,0.24), skin,  0, 1.44, 0);
+    this._add(this._cyl(0.07,0.07,0.1), skin,   0, 1.29, 0);
+
+    // ── Torso (coat body) ────────────────────────────────────────────────────
+    this._add(this._box(0.48,0.58,0.27), coat,  0, 0.92, 0);
+    // Coat skirt / lower flare (trench coat silhouette)
+    this._add(this._box(0.52,0.38,0.27), coat,  0, 0.47, 0);
+
+    // ── Lapels ───────────────────────────────────────────────────────────────
+    this._add(this._box(0.11,0.24,0.02), coat, -0.09, 1.07, 0.137,  0,0, 0.18);
+    this._add(this._box(0.11,0.24,0.02), coat,  0.09, 1.07, 0.137,  0,0,-0.18);
+
+    // ── Belt ─────────────────────────────────────────────────────────────────
+    this._add(this._box(0.50,0.055,0.29), band, 0, 0.645, 0);
+    this._add(this._box(0.07,0.05,0.02), brass, 0, 0.645, 0.148); // buckle
+
+    // ── Pockets (6 total) ────────────────────────────────────────────────────
+    // Breast pockets (chest, left & right)
+    this._add(this._box(0.11,0.075,0.03), coatD, -0.155, 1.06, 0.147);
+    this._add(this._box(0.11,0.075,0.03), coatD,  0.155, 1.06, 0.147);
+    // Pocket flaps on breast pockets
+    this._add(this._box(0.11,0.03,0.025), coat, -0.155, 1.10, 0.148);
+    this._add(this._box(0.11,0.03,0.025), coat,  0.155, 1.10, 0.148);
+    // Hip/side pockets (on coat skirt)
+    this._add(this._box(0.14,0.11,0.04), coatD, -0.2, 0.58, 0.14);
+    this._add(this._box(0.14,0.11,0.04), coatD,  0.2, 0.58, 0.14);
+    // Hip pocket flaps
+    this._add(this._box(0.14,0.03,0.03), coat, -0.2, 0.645, 0.145);
+    this._add(this._box(0.14,0.03,0.03), coat,  0.2, 0.645, 0.145);
+    // Interior pocket hint (narrow strip visible above lapel opening)
+    this._add(this._box(0.06,0.12,0.02), coatD, -0.04, 1.02, 0.138);
+    this._add(this._box(0.06,0.12,0.02), coatD,  0.04, 1.02, 0.138);
+
+    // ── Arms ─────────────────────────────────────────────────────────────────
+    this._add(this._box(0.13,0.50,0.13), coat, -0.305, 0.93, 0);
+    this._add(this._box(0.13,0.50,0.13), coat,  0.305, 0.93, 0);
+    // Forearms (slight angle forward)
+    this._add(this._box(0.11,0.34,0.11), coat, -0.305, 0.60, 0.018, 0.08,0,0);
+    this._add(this._box(0.11,0.34,0.11), coat,  0.305, 0.60, 0.018, 0.08,0,0);
+    // Coat sleeve cuffs
+    this._add(this._box(0.125,0.04,0.125), coatD, -0.305, 0.432, 0.024);
+    this._add(this._box(0.125,0.04,0.125), coatD,  0.305, 0.432, 0.024);
+    // Hands
+    this._add(this._box(0.10,0.09,0.07), skin, -0.305, 0.37, 0.03);
+    this._add(this._box(0.10,0.09,0.07), skin,  0.305, 0.37, 0.03);
+
+    // ── Legs ─────────────────────────────────────────────────────────────────
+    this._add(this._box(0.16,0.44,0.17), pant, -0.12, 0.33, 0);
+    this._add(this._box(0.16,0.44,0.17), pant,  0.12, 0.33, 0);
+
+    // ── Shoes ────────────────────────────────────────────────────────────────
+    this._add(this._box(0.17,0.09,0.24), shoe, -0.12, 0.08, 0.03);
+    this._add(this._box(0.17,0.09,0.24), shoe,  0.12, 0.08, 0.03);
+    // Heel block
+    this._add(this._box(0.16,0.04,0.08), shoe, -0.12, 0.04, -0.07);
+    this._add(this._box(0.16,0.04,0.08), shoe,  0.12, 0.04, -0.07);
+
+    // ── Fedora hat ───────────────────────────────────────────────────────────
+    // Brim (wide, flat)
+    this._add(this._cyl(0.295, 0.305, 0.04, 20), hat, 0, 1.625, 0);
+    // Crown (tapered cylinder)
+    this._add(this._cyl(0.155, 0.175, 0.21, 18), hat, 0, 1.755, 0);
+    // Hat band around base of crown
+    this._add(this._cyl(0.182, 0.182, 0.055, 18), band, 0, 1.658, 0);
+    // Slight crown pinch — narrow cap on top
+    this._add(this._cyl(0.13, 0.155, 0.04, 16), hat, 0, 1.875, 0);
+  }
+  setPosition(x, y, z) { this._group.position.set(x, y, z); }
+  setRotationY(ry)      { this._group.rotation.y = ry + Math.PI; } // face away from camera dir
+  setVisible(v)         { this._group.visible = v; }
+  update(delta) {
+    if (!this._group.visible) return;
+    // Idle breathing bob
+    const bob = Math.sin(Date.now() / 800 + this._phase) * 0.012;
+    this._group.position.y += bob * delta * 4;
+  }
+  dispose(scene) {
+    this._group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    scene.remove(this._group);
+  }
+}
+
+// ── OtherPlayersManager ───────────────────────────────────────────────────────
+class OtherPlayersManager {
+  constructor(scene) {
+    this._scene = scene;
+    this._models = new Map(); // playerId → DetectiveModel
+  }
+  move(playerId, position, rotY) {
+    if (!this._models.has(playerId)) this._models.set(playerId, new DetectiveModel(this._scene));
+    const m = this._models.get(playerId);
+    m.setPosition(position.x, position.y - PLAYER_HEIGHT, position.z);
+    m.setRotationY(rotY);
+    m.setVisible(true);
+  }
+  syncMembers(memberIds) {
+    for (const [id, model] of this._models) {
+      if (!memberIds.includes(id)) { model.dispose(this._scene); this._models.delete(id); }
+    }
+  }
+  update(delta) { for (const [, m] of this._models) m.update(delta); }
+}
+
 // ── PlayerController ──────────────────────────────────────────────────────────
 class PlayerController {
   constructor(camera, domElement) {
@@ -2439,9 +2570,10 @@ class LANClient {
     this.connected = false;
     this._name = '';
     this._pendingAction = null;
-    this.onPartyUpdate = null; // (members, code, isHost) => void
-    this.onGameStarted = null; // (params) => void
-    this.onError = null;       // (msg) => void
+    this.onPartyUpdate = null;  // (members, code, isHost) => void
+    this.onGameStarted = null;  // (params) => void
+    this.onPlayerMoved = null;  // (playerId, position, rotY) => void
+    this.onError = null;        // (msg) => void
   }
   connect(name) {
     this._name = name;
@@ -2471,6 +2603,8 @@ class LANClient {
       this.onPartyUpdate?.(msg.members, msg.code, false);
     } else if (msg.type === 'partyUpdate') {
       this.onPartyUpdate?.(msg.members, this.partyCode, this.isHost);
+    } else if (msg.type === 'playerMoved') {
+      if (msg.playerId !== this.playerId) this.onPlayerMoved?.(msg.playerId, msg.position, msg.rotation?.y ?? 0);
     } else if (msg.type === 'gameStarted') {
       this.onGameStarted?.(msg.params);
     } else if (msg.type === 'error') {
@@ -2503,7 +2637,10 @@ const journal = new Journal(ghostId => game.submitGuess(ghostId));
 const toolMgr = new ToolManager(scene.camera, scene.scene, hud, scene, game);
 toolMgr.tools.sensor.setMapTablet(tablet);
 toolMgr.setShelf(vanShelf);
-const lanClient = new LANClient();
+const lanClient    = new LANClient();
+const otherPlayers = new OtherPlayersManager(scene.scene);
+
+lanClient.onPlayerMoved = (id, pos, rotY) => otherPlayers.move(id, pos, rotY);
 
 let gameStarted = false, curRoomId = 'van', moveThrottle = 0;
 let _prevRoomId = 'van';
@@ -2555,7 +2692,10 @@ function renderPartyMembers(members, code, isHost) {
   show('mp-waiting', 'flex');
 }
 
-lanClient.onPartyUpdate = (members, code, isHost) => renderPartyMembers(members, code, isHost);
+lanClient.onPartyUpdate = (members, code, isHost) => {
+  renderPartyMembers(members, code, isHost);
+  otherPlayers.syncMembers(members.map(m => m.id).filter(id => id !== lanClient.playerId));
+};
 lanClient.onError = (msg) => { document.getElementById('mp-error').textContent = msg; };
 lanClient.onGameStarted = (params) => { enterGame(params); };
 
@@ -2777,6 +2917,7 @@ function animate() {
 
     toolMgr.update(delta, curRoomId);
     ghost.update(delta);
+    otherPlayers.update(delta);
     if (ghost.isVisible()) {
       const gp = ghost.getPosition(), cp = scene.camera.position;
       const dx = gp.x-cp.x, dy = gp.y-cp.y, dz = gp.z-cp.z;
