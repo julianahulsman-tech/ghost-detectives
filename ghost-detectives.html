@@ -62,6 +62,20 @@ canvas { display: block; width: 100vw; height: 100vh; }
 #journal-submit { margin-top: 20px; background: #c33; color: #fff; border: none; padding: 10px 24px; font-size: 14px; cursor: pointer; font-family: 'Courier New', monospace; }
 #journal-submit:disabled { background: #444; cursor: default; }
 #journal-close { position: absolute; top: 20px; right: 30px; background: none; border: none; color: #888; font-size: 22px; cursor: pointer; }
+#journal-tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid #333; }
+.journal-tab { background: none; border: none; border-bottom: 2px solid transparent; color: #666; font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 1px; padding: 8px 20px; cursor: pointer; margin-bottom: -1px; }
+.journal-tab:hover { color: #999; }
+.journal-tab.active { color: #c33; border-bottom-color: #c33; }
+#journal-lore-view { display: none; flex-direction: row; gap: 0; min-height: 300px; }
+#lore-ghost-list { flex: 0 0 150px; border-right: 1px solid #333; padding-right: 20px; margin-right: 30px; }
+.lore-nav-entry { padding: 5px 8px; margin-bottom: 4px; font-size: 13px; color: #666; cursor: pointer; border-left: 2px solid transparent; }
+.lore-nav-entry:hover { color: #aaa; }
+.lore-nav-entry.active { color: #f88; border-left-color: #c33; }
+#lore-panel { flex: 1; }
+#lore-panel-name { color: #c33; font-size: 18px; letter-spacing: 3px; margin-bottom: 8px; }
+#lore-panel-evidence { color: #555; font-size: 11px; letter-spacing: 1px; margin-bottom: 20px; text-transform: uppercase; }
+#lore-panel-text { color: #bbb; font-size: 13px; line-height: 2; }
+#lore-placeholder { color: #444; font-size: 13px; padding-top: 20px; }
 #map-tablet { position: fixed; inset: 0; background: rgba(0,0,0,0.88); display: none; z-index: 50; align-items: center; justify-content: center; pointer-events: all; }
 #map-canvas { border: 1px solid #333; }
 #map-close { position: absolute; top: 20px; right: 30px; background: none; border: none; color: #888; font-size: 22px; cursor: pointer; }
@@ -118,11 +132,21 @@ canvas { display: block; width: 100vw; height: 100vh; }
 <div id="journal">
   <button id="journal-close">✕</button>
   <h2>EVIDENCE JOURNAL</h2>
-  <div id="journal-inner">
-    <div id="evidence-list"><h3>EVIDENCE</h3></div>
-    <div id="ghost-list"><h3>GHOST TYPE</h3></div>
+  <div id="journal-tabs">
+    <button class="journal-tab active" data-tab="evidence">EVIDENCE</button>
+    <button class="journal-tab" data-tab="lore">GHOST CODEX</button>
   </div>
-  <button id="journal-submit" disabled>SUBMIT IDENTIFICATION</button>
+  <div id="journal-evidence-view">
+    <div id="journal-inner">
+      <div id="evidence-list"><h3>EVIDENCE</h3></div>
+      <div id="ghost-list"><h3>GHOST TYPE</h3></div>
+    </div>
+    <button id="journal-submit" disabled>SUBMIT IDENTIFICATION</button>
+  </div>
+  <div id="journal-lore-view">
+    <div id="lore-ghost-list"></div>
+    <div id="lore-panel"><p id="lore-placeholder">Select a ghost to read its file.</p></div>
+  </div>
 </div>
 
 <div id="map-tablet" style="display:none">
@@ -165,20 +189,20 @@ const PLAYER_HEIGHT = 1.7, PLAYER_RADIUS = 0.4, DOOR_WIDTH = 1.8, DOOR_HEIGHT = 
 
 // ── Ghost data ───────────────────────────────────────────────────────────────
 const GHOST_TYPES = [
-  { id:'banshee',     name:'Banshee',     evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.FINGERPRINTS], specialAbility:null, huntBehavior:{baseSpeed:4.8,speedModifier:null,modifierCondition:null}, flavourText:'A wailing spirit that heralds death.' },
-  { id:'demon',       name:'Demon',       evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:5.2,speedModifier:null,modifierCondition:null}, flavourText:'One of the most vicious entities.' },
-  { id:'mare',        name:'Mare',        evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS, EVIDENCE.SPIRIT_BOX], specialAbility:null, huntBehavior:{baseSpeed:4.5,speedModifier:null,modifierCondition:null}, flavourText:'The source of all nightmares.' },
-  { id:'spirit',      name:'Spirit',      evidence:[EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING, EVIDENCE.FINGERPRINTS], specialAbility:null, huntBehavior:{baseSpeed:4.5,speedModifier:null,modifierCondition:null}, flavourText:'The most common ghost encountered.' },
-  { id:'poltergeist', name:'Poltergeist', evidence:[EVIDENCE.SPIRIT_BOX, EVIDENCE.FINGERPRINTS, EVIDENCE.GHOST_ORBS], specialAbility:null, huntBehavior:{baseSpeed:4.8,speedModifier:null,modifierCondition:null}, flavourText:'A noisy ghost capable of moving objects.' },
-  { id:'jinn',        name:'Jinn',        evidence:[EVIDENCE.EMF5, EVIDENCE.GHOST_ORBS, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterWithoutPower', huntBehavior:{baseSpeed:4.5,speedModifier:2.0,modifierCondition:'powerOff'}, flavourText:'A territorial ghost that exploits the environment.' },
-  { id:'shade',       name:'Shade',       evidence:[EVIDENCE.EMF5, EVIDENCE.WRITING, EVIDENCE.GHOST_ORBS], specialAbility:'withholdEvidenceInGroup', huntBehavior:{baseSpeed:4.2,speedModifier:null,modifierCondition:null}, flavourText:'A shy ghost — investigate alone.' },
-  { id:'yurei',       name:'Yurei',       evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:4.8,speedModifier:null,modifierCondition:null}, flavourText:'A ghost that has returned to the physical world.' },
-  { id:'oni',         name:'Oni',         evidence:[EVIDENCE.EMF5, EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:5.5,speedModifier:null,modifierCondition:null}, flavourText:'A rare and aggressive variant of the Demon.' },
-  { id:'revenant',    name:'Revenant',    evidence:[EVIDENCE.EMF5, EVIDENCE.WRITING, EVIDENCE.FINGERPRINTS], specialAbility:'proximitySpeed', huntBehavior:{baseSpeed:2.0,speedModifier:6.0,modifierCondition:'farFromPlayer',proximityThreshold:5}, flavourText:'Very fast from afar, slow up close.' },
-  { id:'phantom',     name:'Phantom',     evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS], specialAbility:'sanityDrainOnLook', huntBehavior:{baseSpeed:4.5,speedModifier:null,modifierCondition:null}, flavourText:'Sanity drains while looking at it during a hunt.' },
-  { id:'wendigo',     name:'Wendigo',     evidence:[EVIDENCE.FINGERPRINTS, EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterAtLowSanity', huntBehavior:{baseSpeed:4.5,speedModifier:2.5,modifierCondition:'playerSanityBelow30'}, flavourText:'Feeds on fear — grows faster at low sanity.' },
-  { id:'upyr',        name:'Upyr',        evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX], specialAbility:'permanentSpeedOnDeath', huntBehavior:{baseSpeed:4.5,speedModifier:1.0,modifierCondition:'playerDied'}, flavourText:'Grows permanently faster each time a player dies.' },
-  { id:'egui',        name:'Egui',        evidence:[EVIDENCE.GHOST_ORBS, EVIDENCE.WRITING, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterIfPlayerHoldsItem', huntBehavior:{baseSpeed:4.5,speedModifier:2.5,modifierCondition:'playerHoldingTriggerItem'}, flavourText:'Fixated on a specific possession.' },
+  { id:'banshee',     name:'Banshee',     evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.FINGERPRINTS], specialAbility:null, huntBehavior:{baseSpeed:4.8,speedModifier:null,modifierCondition:null}, flavourText:'A wailing spirit that heralds death.', lore:'Banshees are ghosts that went insane after they died, becoming overly obsessed with the death of humans. They pick their target before they hunt — killing one person at a time. They like to investigate people before hunting them, to remember another person they\'ve killed. They believe that ghosts are superior to humans. Legend has it you might catch one laughing after killing the people who came to investigate. But personally, we\'ve never heard or seen it.' },
+  { id:'demon',       name:'Demon',       evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:5.2,speedModifier:null,modifierCondition:null}, flavourText:'One of the most vicious entities.', lore:'Highly aggressive. The ghost we have lost the most amount of people to — by hundreds. They hunt far more frequently than the others and without mercy.' },
+  { id:'mare',        name:'Mare',        evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS, EVIDENCE.SPIRIT_BOX], specialAbility:null, huntBehavior:{baseSpeed:4.5,speedModifier:null,modifierCondition:null}, flavourText:'The source of all nightmares.', lore:'These ghosts were always scared of the dark when they were still human, and they got laughed at for it. Made fun of. Having died in the dark, they made a promise to themselves: to take revenge and make more people afraid of the dark. The Mare prefers the dark, hunting more efficiently within it.' },
+  { id:'spirit',      name:'Spirit',      evidence:[EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING, EVIDENCE.FINGERPRINTS], specialAbility:null, huntBehavior:{baseSpeed:4.5,speedModifier:null,modifierCondition:null}, flavourText:'The most common ghost encountered.', lore:'The most basic ghost. A lot of ghosts don\'t become advanced enough to grow out of this stage — until we discover them, anyway. We have not figured out if this one has an ability yet. But we have seen it a lot of times, so it\'s pretty safe to assume it has no ability.' },
+  { id:'poltergeist', name:'Poltergeist', evidence:[EVIDENCE.SPIRIT_BOX, EVIDENCE.FINGERPRINTS, EVIDENCE.GHOST_ORBS], specialAbility:null, huntBehavior:{baseSpeed:4.8,speedModifier:null,modifierCondition:null}, flavourText:'A noisy ghost capable of moving objects.', lore:'These like to make their presence known — often destroying items around the house, slamming doors, making sure you can hear that they are here. They want to be acknowledged. Yet they are not afraid to kill if they want to see you dead.' },
+  { id:'jinn',        name:'Jinn',        evidence:[EVIDENCE.EMF5, EVIDENCE.GHOST_ORBS, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterWithoutPower', huntBehavior:{baseSpeed:4.5,speedModifier:2.0,modifierCondition:'powerOff'}, flavourText:'A territorial ghost that exploits the environment.', lore:'These ghosts are the friendliest ones, and get very excited to see you — often wanting to give you a hug when they can. (Which is only during a hunt.) It forgets, however, that if you touch a human as a ghost you kill them. They speed up when they see humans, often making it impossible to escape their deathly hug.' },
+  { id:'shade',       name:'Shade',       evidence:[EVIDENCE.EMF5, EVIDENCE.WRITING, EVIDENCE.GHOST_ORBS], specialAbility:'withholdEvidenceInGroup', huntBehavior:{baseSpeed:4.2,speedModifier:null,modifierCondition:null}, flavourText:'A shy ghost — investigate alone.', lore:'A shy ghost that prefers not to be seen. It only hunts people who are alone, never wanting to be seen by more than one person whose fate has already been sealed.' },
+  { id:'yurei',       name:'Yurei',       evidence:[EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:4.8,speedModifier:null,modifierCondition:null}, flavourText:'A ghost that has returned to the physical world.', lore:'A ghost that has returned to the physical world, bound by grief or regret. They linger in places of deep emotional significance, unable or unwilling to move on. Their presence is subtle but pervasive — slowly sapping the will of all who remain near them.' },
+  { id:'oni',         name:'Oni',         evidence:[EVIDENCE.EMF5, EVIDENCE.SPIRIT_BOX, EVIDENCE.WRITING], specialAbility:null, huntBehavior:{baseSpeed:5.5,speedModifier:null,modifierCondition:null}, flavourText:'A rare and aggressive variant of the Demon.', lore:'A rare and deeply aggressive variant. Where most ghosts settle into patterns, the Oni never rests. It is relentless. Some researchers believe its activity actually increases when it knows it is being watched — as if it wants to be seen.' },
+  { id:'revenant',    name:'Revenant',    evidence:[EVIDENCE.EMF5, EVIDENCE.WRITING, EVIDENCE.FINGERPRINTS], specialAbility:'proximitySpeed', huntBehavior:{baseSpeed:2.0,speedModifier:6.0,modifierCondition:'farFromPlayer',proximityThreshold:5}, flavourText:'Very fast from afar, slow up close.', lore:'They were never much of a runner back when they were human. They always believed that taking things slow will make you go further — slow and steady wins the race, after all. So they prefer if you also stay crouching. If they hear or see you start running, they will speed up. By a lot. Going from a slow ghost to one on the level of sprinting.' },
+  { id:'phantom',     name:'Phantom',     evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.GHOST_ORBS], specialAbility:'sanityDrainOnLook', huntBehavior:{baseSpeed:4.5,speedModifier:null,modifierCondition:null}, flavourText:'Sanity drains while looking at it during a hunt.', lore:'These ghosts are some of the most playful. They toy with their prey, making sure they know they\'re being watched. If you look a Phantom in the eyes, it will drain your sanity — watching how long it toys around instead of ending your suffering.' },
+  { id:'wendigo',     name:'Wendigo',     evidence:[EVIDENCE.FINGERPRINTS, EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterAtLowSanity', huntBehavior:{baseSpeed:4.5,speedModifier:2.5,modifierCondition:'playerSanityBelow30'}, flavourText:'Feeds on fear — grows faster at low sanity.', lore:'Born from desperation and suffering, the Wendigo feeds on fear. The more terrified you become, the faster it grows. Keep your composure. Keep your sanity. Because if you break — it will overtake you.' },
+  { id:'upyr',        name:'Upyr',        evidence:[EVIDENCE.EMF5, EVIDENCE.FREEZING_TEMPS, EVIDENCE.SPIRIT_BOX], specialAbility:'permanentSpeedOnDeath', huntBehavior:{baseSpeed:4.5,speedModifier:1.0,modifierCondition:'playerDied'}, flavourText:'Grows permanently faster each time a player dies.', lore:'Blood-drinking entities, closely related to the modern vampire. They are believed to be the risen souls of those who died with unredeemed sins, cursed to seek the blood of the living.' },
+  { id:'egui',        name:'Egui',        evidence:[EVIDENCE.GHOST_ORBS, EVIDENCE.WRITING, EVIDENCE.SPIRIT_BOX], specialAbility:'fasterIfPlayerHoldsItem', huntBehavior:{baseSpeed:4.5,speedModifier:2.5,modifierCondition:'playerHoldingTriggerItem'}, flavourText:'Fixated on a specific possession.', lore:'Tormented souls driven by intense greed and desire. They want a certain thing very much, and will take it from you if you are holding it — speeding up and killing you for it. If you do not have this item, it moves slower and prioritizes the closest person to it when hunting.' },
 ];
 
 // ── House data ───────────────────────────────────────────────────────────────
@@ -1769,6 +1793,27 @@ class Journal {
       d.textContent=g.name; d.title=g.evidence.map(e=>EVIDENCE_LABELS[e]||e).join(', ');
       d.addEventListener('click',()=>this._select(g.id)); gl.appendChild(d);
     }
+    const lgl=document.getElementById('lore-ghost-list');
+    for(const g of GHOST_TYPES){
+      const d=document.createElement('div'); d.className='lore-nav-entry'; d.dataset.id=g.id;
+      d.textContent=g.name;
+      d.addEventListener('click',()=>this._showLore(g.id)); lgl.appendChild(d);
+    }
+    document.querySelectorAll('.journal-tab').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        document.querySelectorAll('.journal-tab').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab=btn.dataset.tab;
+        document.getElementById('journal-evidence-view').style.display=tab==='evidence'?'block':'none';
+        document.getElementById('journal-lore-view').style.display=tab==='lore'?'flex':'none';
+      });
+    });
+  }
+  _showLore(id) {
+    const g=GHOST_TYPES.find(x=>x.id===id); if(!g) return;
+    document.querySelectorAll('.lore-nav-entry').forEach(e=>e.classList.toggle('active',e.dataset.id===id));
+    const evLabels=g.evidence.map(e=>EVIDENCE_LABELS[e]||e).join(' · ');
+    document.getElementById('lore-panel').innerHTML=`<div id="lore-panel-name">${g.name.toUpperCase()}</div><div id="lore-panel-evidence">${evLabels}</div><div id="lore-panel-text">${g.lore||g.flavourText}</div>`;
   }
   _cycle(k) {
     this._states[k]=(this._states[k]+1)%3;
