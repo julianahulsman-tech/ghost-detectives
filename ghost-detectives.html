@@ -2595,7 +2595,7 @@ class LANClient {
     if (this.ws && this.connected) return Promise.resolve();
     return new Promise((resolve) => {
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${proto}//${window.location.hostname}:3000`;
+      const wsUrl = `${proto}//${window.location.host}`;
       try {
         this.ws = new WebSocket(wsUrl);
         this.ws.onopen = () => { this.connected = true; resolve(); };
